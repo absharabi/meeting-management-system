@@ -8,7 +8,16 @@ const meetings = [
   { id: 4, title: 'Client Presentation', date: 'Oct 28', time: '11:00 AM', participants: 4, status: 'Upcoming' },
 ];
 
-export default function MeetingTable() {
+interface MeetingTableProps {
+  searchQuery?: string;
+}
+
+export default function MeetingTable({ searchQuery = '' }: MeetingTableProps) {
+  const filteredMeetings = meetings.filter(meeting => 
+    meeting.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    meeting.status.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
       <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
@@ -27,7 +36,7 @@ export default function MeetingTable() {
             </tr>
           </thead>
           <tbody>
-            {meetings.map((meeting) => (
+            {filteredMeetings.map((meeting) => (
               <tr key={meeting.id} className="bg-white dark:bg-gray-800 border-b border-gray-50 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
                 <td className="px-6 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap">
                   {meeting.title}

@@ -11,13 +11,18 @@ import { dashboardStats } from '../../data/dashboardData';
 
 export default function DashboardPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-950 overflow-hidden font-sans transition-colors">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       
       <div className="flex-1 flex flex-col min-w-0">
-        <Navbar onMenuClick={() => setIsSidebarOpen(true)} />
+        <Navbar 
+          onMenuClick={() => setIsSidebarOpen(true)} 
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+        />
         
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50/50 dark:bg-gray-950/50 p-4 md:p-8">
           <div className="max-w-7xl mx-auto space-y-6">
@@ -47,7 +52,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="pb-8">
-              <MeetingTable />
+              <MeetingTable searchQuery={searchQuery} />
             </div>
             
           </div>

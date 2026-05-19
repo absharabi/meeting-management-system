@@ -6,12 +6,15 @@ import { useTheme } from 'next-themes';
 
 interface NavbarProps {
   onMenuClick: () => void;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
 }
 
-export default function Navbar({ onMenuClick }: NavbarProps) {
+export default function Navbar({ onMenuClick, searchQuery = '', onSearchChange }: NavbarProps) {
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -35,6 +38,8 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
           <input
             type="text"
             placeholder="Search..."
+            value={searchQuery}
+            onChange={(e) => onSearchChange?.(e.target.value)}
             className="pl-9 pr-3 py-1.5 rounded-lg text-sm text-gray-900 bg-white/90 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 w-48 lg:w-64 transition-all"
           />
         </div>
@@ -78,9 +83,26 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
           )}
         </div>
 
-        <button className="p-1 rounded-full hover:bg-blue-800 dark:hover:bg-gray-800 transition-colors">
-          <UserCircle size={28} />
-        </button>
+        {/* Profile Dropdown */}
+        <div className="relative">
+          <button 
+            onClick={() => setShowProfileMenu(!showProfileMenu)}
+            className="p-1 rounded-full hover:bg-blue-800 dark:hover:bg-gray-800 transition-colors"
+          >
+            <UserCircle size={28} />
+          </button>
+          
+          {showProfileMenu && (
+            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden text-gray-800 dark:text-gray-200">
+              <div className="py-1">
+                <button className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">Profile</button>
+                <button className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">Settings</button>
+                <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                <button className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">Logout</button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
