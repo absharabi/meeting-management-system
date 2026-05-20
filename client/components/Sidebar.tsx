@@ -39,6 +39,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <Calendar size={18} />
             Meetings
           </Link>
+          <Link href="/meetings/create" className="flex items-center gap-3 px-4 py-3 ml-2 rounded-lg text-sm text-gray-500 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium">
+            + New Meeting
+          </Link>
           <Link href="/users" className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium">
             <Users size={18} />
             Users

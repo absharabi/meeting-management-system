@@ -6,6 +6,7 @@ import passport from 'passport';
 import { connectDB } from './config/db';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
+import meetingRoutes from './routes/meeting.routes';
 import './config/passport';
 
 connectDB();
@@ -23,6 +24,7 @@ app.use(passport.initialize());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/meetings', meetingRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
