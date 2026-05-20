@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Navbar from '../../components/Navbar';
 import Sidebar from '../../components/Sidebar';
 import DashboardCard from '../../components/DashboardCard';
@@ -12,6 +12,21 @@ import { dashboardStats } from '../../data/dashboardData';
 export default function DashboardPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    const user = params.get('user');
+
+    if (!token) return;
+
+    localStorage.setItem('accessToken', token);
+    if (user) {
+      localStorage.setItem('user', user);
+    }
+
+    window.history.replaceState(null, '', '/dashboard');
+  }, []);
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-950 overflow-hidden font-sans transition-colors">
