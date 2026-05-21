@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import Meeting, { MeetingMode } from '../models/Meeting';
+import Meeting, { MeetingMode, MeetingStatus } from '../models/Meeting';
 import { Role } from '../models/User';
 
 // Helper to check if a user has permission to create/edit meetings
@@ -28,7 +28,7 @@ export const createMeeting = async (req: Request, res: Response): Promise<void> 
         $or: [
           { startTime: { $lt: endTime }, endTime: { $gt: startTime } } // Overlapping time check
         ],
-        status: { $ne: 'Cancelled' } // Ignore cancelled meetings
+        status: { $ne: MeetingStatus.Cancelled } // Ignore cancelled meetings
       });
 
       if (conflict) {
@@ -114,7 +114,7 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
         $or: [
           { startTime: { $lt: endTime || target.endTime }, endTime: { $gt: startTime || target.startTime } }
         ],
-        status: { $ne: 'Cancelled' }
+        status: { $ne: MeetingStatus.Cancelled }
       });
 
       if (conflict) {
@@ -163,7 +163,7 @@ export const markAttendance = async (req: Request, res: Response): Promise<void>
     const { attendanceList } = req.body; // Array of User IDs
     const updated = await Meeting.findByIdAndUpdate(
       req.params.id, 
-      { attendance: attendanceList, status: 'Completed' }, 
+      { attendance: attendanceList, status: MeetingStatus.Completed }, 
       { new: true }
     );
 
