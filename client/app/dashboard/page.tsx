@@ -7,7 +7,10 @@ import DashboardCard from '../../components/DashboardCard';
 import DashboardChart from '../../components/DashboardChart';
 import CalendarWidget from '../../components/CalendarWidget';
 import MeetingTable from '../../components/MeetingTable';
-import { dashboardStats } from '../../data/dashboardData';
+import ActionCard from '../../components/ActionCard';
+import ActivityLogWidget from '../../components/ActivityLogWidget';
+import { superAdminStats, adminStats, organizerStats, participantStats } from '../../data/dashboardData';
+import { ShieldCheck, Download, Settings, FileText, Bell, Users, Video, CalendarPlus } from 'lucide-react';
 
 interface User {
   name?: string;
@@ -71,20 +74,31 @@ export default function DashboardPage() {
     if (isSuperAdmin) {
       return (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {dashboardStats.map((stat) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+            {superAdminStats.map((stat) => (
               <DashboardCard key={stat.id} title={stat.title} value={stat.value} description={stat.description} />
             ))}
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <div className="mt-8 mb-4">
+            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">System Management</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <ActionCard title="Role Assignment" description="Manage access control" icon={ShieldCheck} color="blue" />
+              <ActionCard title="System Settings" description="Configure platform" icon={Settings} color="purple" />
+              <ActionCard title="Audit Logs" description="View security logs" icon={FileText} color="amber" />
+              <ActionCard title="Export Reports" description="Download PDF/Excel" icon={Download} color="green" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
             <div className="lg:col-span-2 min-h-[350px]">
               <DashboardChart />
             </div>
             <div className="min-h-[350px]">
-              <CalendarWidget />
+              <ActivityLogWidget />
             </div>
           </div>
-          <div className="pb-8">
+          <div className="py-8">
             <MeetingTable searchQuery={searchQuery} />
           </div>
         </>
@@ -94,12 +108,12 @@ export default function DashboardPage() {
     if (isAdmin) {
       return (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {dashboardStats.map((stat) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {adminStats.map((stat) => (
               <DashboardCard key={stat.id} title={stat.title} value={stat.value} description={stat.description} />
             ))}
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
             <div className="lg:col-span-2 min-h-[350px]">
               <DashboardChart />
             </div>
@@ -107,8 +121,8 @@ export default function DashboardPage() {
               <CalendarWidget />
             </div>
           </div>
-          <div className="pb-8">
-            <MeetingTable searchQuery={searchQuery} />
+          <div className="py-8">
+            <MeetingTable searchQuery={searchQuery} isDepartmentAdmin={true} />
           </div>
         </>
       );
@@ -117,19 +131,29 @@ export default function DashboardPage() {
     if (isOrganizer) {
       return (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {/* Organizers see fewer stats, focused on their own meetings */}
-            {dashboardStats.slice(0, 2).map((stat) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {organizerStats.map((stat) => (
               <DashboardCard key={stat.id} title={stat.title} value={stat.value} description={stat.description} />
             ))}
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          <div className="mt-8 mb-4">
+            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Quick Actions</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <ActionCard title="Schedule Meeting" description="Create a new event" icon={CalendarPlus} color="blue" />
+              <ActionCard title="Upload Documents" description="Attach meeting agendas" icon={FileText} color="purple" />
+              <ActionCard title="Live Notifications" description="Send reminders" icon={Bell} color="amber" />
+              <ActionCard title="Start Online Sync" description="Google Meet Integration" icon={Video} color="green" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
             <div className="lg:col-span-3 min-h-[350px]">
               <CalendarWidget />
             </div>
           </div>
-          <div className="pb-8">
-            <MeetingTable searchQuery={searchQuery} />
+          <div className="py-8">
+            <MeetingTable searchQuery={searchQuery} isOrganizer={true} />
           </div>
         </>
       );
@@ -138,13 +162,18 @@ export default function DashboardPage() {
     // Participant View
     return (
       <>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {participantStats.map((stat) => (
+            <DashboardCard key={stat.id} title={stat.title} value={stat.value} description={stat.description} />
+          ))}
+        </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-3 min-h-[350px]">
             <CalendarWidget />
           </div>
         </div>
-        <div className="pb-8">
-          <MeetingTable searchQuery={searchQuery} />
+        <div className="py-8">
+          <MeetingTable searchQuery={searchQuery} isParticipant={true} />
         </div>
       </>
     );

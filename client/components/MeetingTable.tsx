@@ -20,9 +20,17 @@ interface Meeting {
 
 interface MeetingTableProps {
   searchQuery?: string;
+  isParticipant?: boolean;
+  isOrganizer?: boolean;
+  isDepartmentAdmin?: boolean;
 }
 
-export default function MeetingTable({ searchQuery = '' }: MeetingTableProps) {
+export default function MeetingTable({ 
+  searchQuery = '', 
+  isParticipant = false, 
+  isOrganizer = false, 
+  isDepartmentAdmin = false 
+}: MeetingTableProps) {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [statusFilter, setStatusFilter] = useState('All');
   const [dateFilter, setDateFilter] = useState('All');
@@ -101,6 +109,14 @@ export default function MeetingTable({ searchQuery = '' }: MeetingTableProps) {
               <option value="This Week">This Week</option>
               <option value="Next Week">Next Week</option>
             </select>
+            {isDepartmentAdmin && (
+              <select className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-blue-500 transition-colors">
+                <option value="All">All Departments</option>
+                <option value="Engineering">Engineering</option>
+                <option value="HR">HR</option>
+                <option value="Marketing">Marketing</option>
+              </select>
+            )}
             <button 
               onClick={fetchMeetings}
               className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 px-4 py-2 border border-blue-200 dark:border-blue-900/50 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all"
@@ -187,7 +203,7 @@ export default function MeetingTable({ searchQuery = '' }: MeetingTableProps) {
                     
                     {/* Dropdown Menu */}
                     {openDropdownId === meeting._id && (
-                      <div className="absolute right-6 mt-1 w-40 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 z-50 overflow-hidden">
+                      <div className="absolute right-6 mt-1 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 z-50 overflow-hidden">
                         <div className="py-1">
                           <button 
                             className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 w-full text-left"
@@ -195,19 +211,49 @@ export default function MeetingTable({ searchQuery = '' }: MeetingTableProps) {
                           >
                             <ExternalLink size={14} /> View Details
                           </button>
-                          <Link 
-                            href={`/meetings/${meeting._id}/edit`}
-                            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 w-full text-left"
-                            onClick={() => setOpenDropdownId(null)}
-                          >
-                            <Edit size={14} /> Edit
-                          </Link>
-                          <button 
-                            onClick={() => { setOpenDropdownId(null); handleDelete(meeting._id); }}
-                            className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left"
-                          >
-                            <Trash2 size={14} /> Delete
-                          </button>
+
+                          {isParticipant && (
+                            <>
+                              <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                              <button className="flex items-center gap-2 px-4 py-2 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 w-full text-left">
+                                Accept Invitation
+                              </button>
+                              <button className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left">
+                                Reject
+                              </button>
+                            </>
+                          )}
+
+                          {isOrganizer && (
+                            <>
+                              <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                              <button className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 w-full text-left">
+                                Mark Attendance
+                              </button>
+                              <button className="flex items-center gap-2 px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 w-full text-left">
+                                Upload Documents
+                              </button>
+                            </>
+                          )}
+
+                          {(!isParticipant) && (
+                            <>
+                              <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                              <Link 
+                                href={`/meetings/${meeting._id}/edit`}
+                                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 w-full text-left"
+                                onClick={() => setOpenDropdownId(null)}
+                              >
+                                <Edit size={14} /> Edit
+                              </Link>
+                              <button 
+                                onClick={() => { setOpenDropdownId(null); handleDelete(meeting._id); }}
+                                className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left"
+                              >
+                                <Trash2 size={14} /> Delete
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     )}
