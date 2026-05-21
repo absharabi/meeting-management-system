@@ -1,5 +1,8 @@
+"use client";
+
 import React from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Users, Calendar, X, LogOut } from 'lucide-react';
 
 interface SidebarProps {
@@ -9,8 +12,15 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole = 'Participant' }) => {
+  const pathname = usePathname();
   const isAdminOrSuper = userRole === 'SuperAdmin' || userRole === 'Admin';
   const canManageMeetings = isAdminOrSuper || userRole === 'Organizer';
+  const itemClass = (active: boolean) =>
+    `flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
+      active
+        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+    }`;
 
   return (
     <>
@@ -35,11 +45,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole = 'Particip
         </div>
         
         <nav className="flex-1 px-4 space-y-2 mt-4">
-          <Link href="/dashboard" className="flex items-center gap-3 px-4 py-3 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-medium transition-colors">
+          <Link href="/dashboard" className={itemClass(pathname === '/dashboard')}>
             <LayoutDashboard size={18} />
             Dashboard
           </Link>
-          <Link href="/meetings" className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium">
+          <Link href="/meetings" className={itemClass(pathname.startsWith('/meetings'))}>
             <Calendar size={18} />
             Meetings
           </Link>
@@ -51,7 +61,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole = 'Particip
           )}
 
           {isAdminOrSuper && (
-            <Link href="/users" className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium">
+            <Link href="/dashboard/users" className={itemClass(pathname.startsWith('/dashboard/users'))}>
               <Users size={18} />
               Users
             </Link>
