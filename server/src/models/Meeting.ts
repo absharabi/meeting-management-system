@@ -20,11 +20,15 @@ export enum MeetingStatus {
 }
 
 export enum MeetingType {
-  General    = 'General',
-  Board      = 'Board',
-  Department = 'Department',
-  Emergency  = 'Emergency',
-  Recurring  = 'Recurring',
+  Board      = 'Board Meeting',
+  Department = 'Department Meeting',
+  Review     = 'Review Meeting',
+  OnlineConf = 'Online Conference',
+  Committee  = 'Committee Meeting',
+  Normal     = 'Normal Meeting',
+  Emergency  = 'Emergency Meeting',
+  Periodic   = 'Periodic Meeting',
+  Scheduled  = 'Scheduled Meeting',
 }
 
 export interface IMeeting extends Document {
@@ -39,9 +43,11 @@ export interface IMeeting extends Document {
   venue?:       string;
   link?:        string;
   organizerId:  Types.ObjectId;
-  participants: Types.ObjectId[];
+  participants: { user: Types.ObjectId; status: string }[];
   attendance:   Types.ObjectId[];
   status:       MeetingStatus;
+  groupId?:     string;
+  recurrencePattern?: string;
   createdAt:    Date;
   updatedAt:    Date;
 }
@@ -60,7 +66,7 @@ const MeetingSchema = new Schema<IMeeting>(
     meetingType: { 
       type: String, 
       enum: Object.values(MeetingType), 
-      default: MeetingType.General 
+      default: MeetingType.Normal 
     },
     mode: { 
       type: String, 
@@ -98,8 +104,8 @@ const MeetingSchema = new Schema<IMeeting>(
       required: true 
     },
     participants: [{ 
-      type: Schema.Types.ObjectId, 
-      ref: 'User' 
+      user: { type: Schema.Types.ObjectId, ref: 'User' },
+      status: { type: String, enum: ['Pending', 'Accepted', 'Declined'], default: 'Pending' }
     }],
     attendance: [{ 
       type: Schema.Types.ObjectId, 
@@ -109,6 +115,15 @@ const MeetingSchema = new Schema<IMeeting>(
       type: String, 
       enum: Object.values(MeetingStatus), 
       default: MeetingStatus.Scheduled 
+    },
+    groupId: {
+      type: String,
+      default: null
+    },
+    recurrencePattern: {
+      type: String,
+      enum: ['None', 'Daily', 'Weekly', 'Bi-Weekly', 'Monthly'],
+      default: 'None'
     }
   },
   { 

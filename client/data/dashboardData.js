@@ -13,18 +13,11 @@ export const adminStats = [
   { id: 4, title: 'Active Organizers', value: '12', description: 'Currently scheduling' },
 ];
 
-export const organizerStats = [
-  { id: 1, title: 'My Meetings', value: '8', description: 'Scheduled this week' },
-  { id: 2, title: 'Upcoming Meetings', value: '3', description: 'Next 48 hours' },
-  { id: 3, title: 'Attendance Avg', value: '88%', description: 'Across your meetings' },
-  { id: 4, title: 'Pending Invitations', value: '15', description: 'Awaiting RSVPs' },
-];
-
-export const participantStats = [
-  { id: 1, title: "Today's Meetings", value: '2', description: 'Check your calendar' },
-  { id: 2, title: 'Upcoming Meetings', value: '5', description: 'Scheduled this week' },
-  { id: 3, title: 'Pending Invitations', value: '1', description: 'Requires RSVP' },
-  { id: 4, title: 'Attendance', value: '100%', description: 'Perfect record!' },
+export const userStats = [
+  { id: 1, title: 'Meetings Organized', value: '4', description: 'Scheduled by you' },
+  { id: 2, title: 'Upcoming Participations', value: '5', description: 'Scheduled this week' },
+  { id: 3, title: 'Pending Invitations', value: '2', description: 'Requires RSVP' },
+  { id: 4, title: 'Attendance', value: '95%', description: 'Across all meetings' },
 ];
 
 export const recentActivity = [

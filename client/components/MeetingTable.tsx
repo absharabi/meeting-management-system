@@ -16,20 +16,16 @@ interface Meeting {
   startTime: string;
   status: string;
   participants: User[];
+  organizerId?: any;
 }
-
 interface MeetingTableProps {
   searchQuery?: string;
-  isParticipant?: boolean;
-  isOrganizer?: boolean;
-  isDepartmentAdmin?: boolean;
+  currentUser?: any;
 }
 
 export default function MeetingTable({ 
   searchQuery = '', 
-  isParticipant = false, 
-  isOrganizer = false, 
-  isDepartmentAdmin = false 
+  currentUser = null 
 }: MeetingTableProps) {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [statusFilter, setStatusFilter] = useState('All');
@@ -73,6 +69,25 @@ export default function MeetingTable({
     }
   };
 
+  const handleRSVP = async (id: string, status: string) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/meetings/${id}/rsvp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) {
+        setOpenDropdownId(null);
+        fetchMeetings(); // Refresh to show updated status
+      } else {
+        const err = await res.json();
+        alert(err.message || 'Failed to update RSVP');
+      }
+    } catch (error) {
+      console.error('Failed to RSVP', error);
+    }
+  };
+
   const filteredMeetings = meetings.filter(meeting => {
     const matchesSearch = meeting.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'All' || meeting.status === statusFilter;
@@ -109,7 +124,7 @@ export default function MeetingTable({
               <option value="This Week">This Week</option>
               <option value="Next Week">Next Week</option>
             </select>
-            {isDepartmentAdmin && (
+            {currentUser?.role === 'Admin' && (
               <select className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-blue-500 transition-colors">
                 <option value="All">All Departments</option>
                 <option value="Engineering">Engineering</option>
@@ -158,11 +173,15 @@ export default function MeetingTable({
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex -space-x-2">
-                      {meeting.participants?.slice(0, 3).map((user, i) => (
-                        <div key={user._id} title={user.name} className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800 bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-xs text-blue-700 dark:text-blue-300 font-medium z-10">
-                          {user.name.charAt(0)}
-                        </div>
-                      ))}
+                      {meeting.participants?.slice(0, 3).map((p: any, i) => {
+                        const user = p.user;
+                        if (!user) return null;
+                        return (
+                          <div key={user._id} title={`${user.name} (${p.status})`} className={`w-8 h-8 rounded-full border-2 border-white dark:border-gray-800 flex items-center justify-center text-xs font-medium z-10 ${p.status === 'Accepted' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : p.status === 'Declined' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'}`}>
+                            {user.name?.charAt(0) || '?'}
+                          </div>
+                        );
+                      })}
                       {meeting.participants?.length > 3 && (
                         <div className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800 bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-600 dark:text-gray-300 font-medium z-0">
                           +{meeting.participants.length - 3}
@@ -205,26 +224,33 @@ export default function MeetingTable({
                     {openDropdownId === meeting._id && (
                       <div className="absolute right-6 mt-1 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 z-50 overflow-hidden">
                         <div className="py-1">
-                          <button 
+                          <Link 
+                            href={`/meetings/${meeting._id}`}
                             className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 w-full text-left"
                             onClick={() => setOpenDropdownId(null)}
                           >
                             <ExternalLink size={14} /> View Details
-                          </button>
+                          </Link>
 
-                          {isParticipant && (
+                          {currentUser && meeting.participants?.some((p: any) => p.user?._id === currentUser.id || p.user?._id === currentUser._id) && (
                             <>
                               <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                              <button className="flex items-center gap-2 px-4 py-2 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 w-full text-left">
+                              <button 
+                                onClick={() => handleRSVP(meeting._id, 'Accepted')}
+                                className="flex items-center gap-2 px-4 py-2 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 w-full text-left"
+                              >
                                 Accept Invitation
                               </button>
-                              <button className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left">
+                              <button 
+                                onClick={() => handleRSVP(meeting._id, 'Declined')}
+                                className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left"
+                              >
                                 Reject
                               </button>
                             </>
                           )}
 
-                          {isOrganizer && (
+                          {currentUser && (meeting.organizerId?._id === currentUser.id || meeting.organizerId?._id === currentUser._id || currentUser.role === 'SuperAdmin' || currentUser.role === 'Admin') && (
                             <>
                               <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                               <button className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 w-full text-left">
@@ -233,11 +259,7 @@ export default function MeetingTable({
                               <button className="flex items-center gap-2 px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 w-full text-left">
                                 Upload Documents
                               </button>
-                            </>
-                          )}
-
-                          {(!isParticipant) && (
-                            <>
+                              
                               <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                               <Link 
                                 href={`/meetings/${meeting._id}/edit`}

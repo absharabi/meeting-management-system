@@ -3,8 +3,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 export enum Role {
   SuperAdmin  = 'SuperAdmin',
   Admin       = 'Admin',
-  Organizer   = 'Organizer',
-  Participant = 'Participant',
+  User        = 'User',
   Reviewer    = 'Reviewer',
 }
 
@@ -26,7 +25,7 @@ const UserSchema = new Schema<IUser>(
     name:       { type: String, required: true, trim: true },
     email:      { type: String, required: true, unique: true, lowercase: true, trim: true },
     avatar:     { type: String },
-    role:       { type: String, enum: Object.values(Role), default: Role.Participant },
+    role:       { type: String, enum: Object.values(Role), default: Role.User },
     department: { type: String, default: '' },
     isActive:   { type: Boolean, default: true },
   },

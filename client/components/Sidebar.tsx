@@ -11,10 +11,10 @@ interface SidebarProps {
   userRole?: string;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole = 'Participant' }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole = 'User' }) => {
   const pathname = usePathname();
   const isAdminOrSuper = userRole === 'SuperAdmin' || userRole === 'Admin';
-  const canManageMeetings = isAdminOrSuper || userRole === 'Organizer';
+  const canManageMeetings = true; // All users can create meetings
   const itemClass = (active: boolean) =>
     `flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
       active

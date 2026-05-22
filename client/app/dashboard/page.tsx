@@ -9,7 +9,7 @@ import CalendarWidget from '../../components/CalendarWidget';
 import MeetingTable from '../../components/MeetingTable';
 import ActionCard from '../../components/ActionCard';
 import ActivityLogWidget from '../../components/ActivityLogWidget';
-import { superAdminStats, adminStats, organizerStats, participantStats } from '../../data/dashboardData';
+import { superAdminStats, adminStats, userStats } from '../../data/dashboardData';
 import { ShieldCheck, Download, Settings, FileText, Bell, Users, Video, CalendarPlus } from 'lucide-react';
 
 interface User {
@@ -49,7 +49,7 @@ export default function DashboardPage() {
     }
   }, []);
 
-  const role = currentUser?.role || 'Participant';
+  const role = currentUser?.role || 'User';
   
   const getGreetingName = () => {
     if (role === 'SuperAdmin') return 'SuperAdmin';
@@ -60,13 +60,11 @@ export default function DashboardPage() {
 
   const isSuperAdmin = role === 'SuperAdmin';
   const isAdmin = role === 'Admin';
-  const isOrganizer = role === 'Organizer';
-  const isParticipant = role === 'Participant';
+  const isUser = role === 'User';
 
   const getSubtitle = () => {
     if (isSuperAdmin) return "System Overview: Here is what is happening across all departments today.";
     if (isAdmin) return "Department Overview: Here is what is happening in your department today.";
-    if (isOrganizer) return "Organizer Dashboard: Here are your scheduled meetings and attendance tasks.";
     return "Here is what is happening with your meetings today. Check your calendar for upcoming events.";
   };
 
@@ -128,52 +126,33 @@ export default function DashboardPage() {
       );
     }
 
-    if (isOrganizer) {
-      return (
-        <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {organizerStats.map((stat) => (
-              <DashboardCard key={stat.id} title={stat.title} value={stat.value} description={stat.description} />
-            ))}
-          </div>
-
-          <div className="mt-8 mb-4">
-            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <ActionCard title="Schedule Meeting" description="Create a new event" icon={CalendarPlus} color="blue" />
-              <ActionCard title="Upload Documents" description="Attach meeting agendas" icon={FileText} color="purple" />
-              <ActionCard title="Live Notifications" description="Send reminders" icon={Bell} color="amber" />
-              <ActionCard title="Start Online Sync" description="Google Meet Integration" icon={Video} color="green" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
-            <div className="lg:col-span-3 min-h-[350px]">
-              <CalendarWidget />
-            </div>
-          </div>
-          <div className="py-8">
-            <MeetingTable searchQuery={searchQuery} isOrganizer={true} />
-          </div>
-        </>
-      );
-    }
-
-    // Participant View
+    // Standard User View
     return (
       <>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {participantStats.map((stat) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {userStats.map((stat) => (
             <DashboardCard key={stat.id} title={stat.title} value={stat.value} description={stat.description} />
           ))}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <div className="mt-8 mb-4">
+          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Quick Actions</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <ActionCard title="Schedule Meeting" description="Create a new event" icon={CalendarPlus} color="blue" />
+            <ActionCard title="Upload Documents" description="Attach meeting agendas" icon={FileText} color="purple" />
+            <ActionCard title="Live Notifications" description="Send reminders" icon={Bell} color="amber" />
+            <ActionCard title="Start Online Sync" description="Google Meet Integration" icon={Video} color="green" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
           <div className="lg:col-span-3 min-h-[350px]">
             <CalendarWidget />
           </div>
         </div>
         <div className="py-8">
-          <MeetingTable searchQuery={searchQuery} isParticipant={true} />
+          {/* We pass currentUser to MeetingTable to allow it to figure out contextual actions */}
+          <MeetingTable searchQuery={searchQuery} currentUser={currentUser} />
         </div>
       </>
     );

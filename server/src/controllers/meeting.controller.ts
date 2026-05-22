@@ -1,10 +1,12 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import Meeting, { MeetingMode, MeetingStatus } from '../models/Meeting';
 import { Role } from '../models/User';
+import { sendEmail } from '../utils/email';
 
-// Helper to check if a user has permission to create/edit meetings
-const canManageMeetings = (role: string) => {
-  return [Role.SuperAdmin, Role.Admin, Role.Organizer].includes(role as Role);
+// Helper to check if a user is a global admin
+const isGlobalAdmin = (role: string) => {
+  return [Role.SuperAdmin, Role.Admin].includes(role as Role);
 };
 
 export const createMeeting = async (req: Request, res: Response): Promise<void> => {
@@ -12,13 +14,11 @@ export const createMeeting = async (req: Request, res: Response): Promise<void> 
     // TEMPORARY: Dummy user since auth is bypassed
     const requestingUser = (req as any).user || { id: '65f0a1b2c3d4e5f607890abc', role: Role.SuperAdmin };
     
-    // RBAC: Only authorized roles can create meetings
-    if (!canManageMeetings(requestingUser.role)) {
-      res.status(403).json({ message: 'You do not have permission to create meetings' });
-      return;
-    }
+    // All authenticated users can create meetings
 
-    const { date, startTime, endTime, venue, mode } = req.body;
+    const { date, startTime, endTime, venue, mode, participants } = req.body;
+    
+    const formattedParticipants = participants?.map((id: string) => ({ user: id, status: 'Pending' })) || [];
 
     // Venue Conflict Detection
     if ((mode === MeetingMode.Offline || mode === MeetingMode.Hybrid) && venue) {
@@ -37,14 +37,78 @@ export const createMeeting = async (req: Request, res: Response): Promise<void> 
       }
     }
 
-    // Assign the creator as the organizer
-    const newMeeting = await Meeting.create({
-      ...req.body,
-      organizerId: requestingUser.id,
+    // Handle Recurrence
+    const recurrencePattern = req.body.recurrencePattern || 'None';
+    const recurrenceCount = parseInt(req.body.recurrenceCount) || 1;
+    const groupId = recurrencePattern !== 'None' ? new mongoose.Types.ObjectId().toString() : undefined;
+
+    const meetingsToCreate = [];
+    let currentDate = new Date(req.body.date);
+
+    for (let i = 0; i < recurrenceCount; i++) {
+      meetingsToCreate.push({
+        ...req.body,
+        date: new Date(currentDate),
+        participants: formattedParticipants,
+        organizerId: requestingUser.id,
+        groupId,
+        recurrencePattern
+      });
+
+      // Increment date based on pattern
+      if (recurrencePattern === 'Daily') {
+        currentDate.setDate(currentDate.getDate() + 1);
+      } else if (recurrencePattern === 'Weekly') {
+        currentDate.setDate(currentDate.getDate() + 7);
+      } else if (recurrencePattern === 'Bi-Weekly') {
+        currentDate.setDate(currentDate.getDate() + 14);
+      } else if (recurrencePattern === 'Monthly') {
+        currentDate.setMonth(currentDate.getMonth() + 1);
+      }
+    }
+
+    const createdMeetings = await Meeting.insertMany(meetingsToCreate);
+    const newMeeting = createdMeetings[0]; // The first one for the email
+
+    // Populate to get emails
+    const populatedMeeting = await Meeting.findById(newMeeting._id).populate('participants.user', 'email name');
+    if (!populatedMeeting) {
+      res.status(500).json({ message: 'Failed to populate created meeting' });
+      return;
+    }
+    
+    // Send email to participants
+    populatedMeeting.participants.forEach((p: any) => {
+      if (p.user && p.user.email) {
+        sendEmail(
+          p.user.email,
+          `Meeting Invitation: ${newMeeting.title}`,
+          `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+            <h2 style="color: #2563eb;">Meeting Invitation</h2>
+            <p>Hello ${p.user.name},</p>
+            <p>You have been invited to a new meeting by your organization.</p>
+            <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin: 5px 0;"><strong>Topic:</strong> ${newMeeting.title}</p>
+              <p style="margin: 5px 0;"><strong>Date:</strong> ${new Date(newMeeting.date).toDateString()}</p>
+              <p style="margin: 5px 0;"><strong>Time:</strong> ${newMeeting.startTime}</p>
+            </div>
+            <p>Please log in to the Meeting Management System to view the full agenda and submit your RSVP.</p>
+          </div>`,
+          {
+            title: newMeeting.title,
+            description: newMeeting.description || '',
+            date: newMeeting.date.toISOString().split('T')[0],
+            startTime: newMeeting.startTime,
+            endTime: newMeeting.endTime,
+            venue: newMeeting.venue || ''
+          }
+        );
+      }
     });
 
-    res.status(201).json(newMeeting);
+    res.status(201).json(populatedMeeting);
   } catch (error) {
+    console.error('Error in createMeeting:', error);
     res.status(500).json({ message: 'Server error while creating meeting', error });
   }
 };
@@ -75,7 +139,7 @@ export const getMeetings = async (req: Request, res: Response): Promise<void> =>
 
     const meetings = await Meeting.find(query)
       .populate('organizerId', 'name email')
-      .populate('participants', 'name email department')
+      .populate('participants.user', 'name email department')
       .sort({ date: 1, startTime: 1 });
 
     res.json(meetings);
@@ -88,11 +152,6 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
   try {
     const requestingUser = (req as any).user || { id: '65f0a1b2c3d4e5f607890abc', role: Role.SuperAdmin };
     
-    if (!canManageMeetings(requestingUser.role)) {
-      res.status(403).json({ message: 'You do not have permission to edit meetings' });
-      return;
-    }
-
     const meetingId = req.params.id;
     const target = await Meeting.findById(meetingId);
     
@@ -101,8 +160,18 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    if (!isGlobalAdmin(requestingUser.role) && target.organizerId.toString() !== requestingUser.id) {
+      res.status(403).json({ message: 'You do not have permission to edit this meeting' });
+      return;
+    }
+
     // Venue Conflict Detection for Updates
-    const { date, startTime, endTime, venue, mode } = req.body;
+    const { date, startTime, endTime, venue, mode, participants } = req.body;
+    
+    const updateData = { ...req.body };
+    if (participants) {
+      updateData.participants = participants.map((id: string) => ({ user: id, status: 'Pending' }));
+    }
     const checkMode = mode || target.mode;
     const checkVenue = venue || target.venue;
     
@@ -123,7 +192,7 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
       }
     }
 
-    const updated = await Meeting.findByIdAndUpdate(meetingId, req.body, { new: true });
+    const updated = await Meeting.findByIdAndUpdate(meetingId, updateData, { new: true });
     res.json(updated);
   } catch (error) {
     res.status(500).json({ message: 'Server error while updating meeting', error });
@@ -134,16 +203,18 @@ export const deleteMeeting = async (req: Request, res: Response): Promise<void> 
   try {
     const requestingUser = (req as any).user || { id: '65f0a1b2c3d4e5f607890abc', role: Role.SuperAdmin };
     
-    if (!canManageMeetings(requestingUser.role)) {
-      res.status(403).json({ message: 'You do not have permission to delete meetings' });
+    const target = await Meeting.findById(req.params.id);
+    if (!target) {
+      res.status(404).json({ message: 'Meeting not found' });
+      return;
+    }
+
+    if (!isGlobalAdmin(requestingUser.role) && target.organizerId.toString() !== requestingUser.id) {
+      res.status(403).json({ message: 'You do not have permission to delete this meeting' });
       return;
     }
 
     const deleted = await Meeting.findByIdAndDelete(req.params.id);
-    if (!deleted) {
-      res.status(404).json({ message: 'Meeting not found' });
-      return;
-    }
 
     res.json({ message: 'Meeting successfully deleted' });
   } catch (error) {
@@ -155,8 +226,14 @@ export const markAttendance = async (req: Request, res: Response): Promise<void>
   try {
     const requestingUser = (req as any).user;
     
-    if (!canManageMeetings(requestingUser.role)) {
-      res.status(403).json({ message: 'Only organizers/admins can mark attendance' });
+    const target = await Meeting.findById(req.params.id);
+    if (!target) {
+      res.status(404).json({ message: 'Meeting not found' });
+      return;
+    }
+
+    if (!isGlobalAdmin(requestingUser.role) && target.organizerId.toString() !== requestingUser.id) {
+      res.status(403).json({ message: 'Only the meeting organizer or an admin can mark attendance' });
       return;
     }
 
@@ -170,5 +247,36 @@ export const markAttendance = async (req: Request, res: Response): Promise<void>
     res.json(updated);
   } catch (error) {
     res.status(500).json({ message: 'Server error while updating attendance', error });
+  }
+};
+
+export const rsvpMeeting = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const requestingUser = (req as any).user;
+    const { status } = req.body; // 'Accepted' | 'Declined'
+    
+    if (!['Accepted', 'Declined'].includes(status)) {
+      res.status(400).json({ message: 'Invalid status' });
+      return;
+    }
+
+    const meeting = await Meeting.findById(req.params.id);
+    if (!meeting) {
+      res.status(404).json({ message: 'Meeting not found' });
+      return;
+    }
+
+    const participantIndex = meeting.participants.findIndex(p => p.user.toString() === requestingUser.id);
+    if (participantIndex === -1) {
+      res.status(403).json({ message: 'You are not a participant in this meeting' });
+      return;
+    }
+
+    meeting.participants[participantIndex].status = status;
+    await meeting.save();
+
+    res.json({ message: `RSVP updated to ${status}`, meeting });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error while updating RSVP', error });
   }
 };

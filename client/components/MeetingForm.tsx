@@ -2,6 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, MapPin, Users, Video, AlertCircle } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import 'react-quill-new/dist/quill.snow.css';
+
+const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 import { useRouter } from 'next/navigation';
 
 interface MeetingFormProps {
@@ -16,7 +20,7 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    meetingType: 'General',
+    meetingType: 'Normal Meeting',
     mode: 'Offline',
     visibility: 'Private',
     date: '',
@@ -24,6 +28,8 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
     endTime: '',
     venue: '',
     link: '',
+    recurrencePattern: 'None',
+    recurrenceCount: 1,
     participants: [] as string[]
   });
 
@@ -36,7 +42,7 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
       setFormData({
         title: initialData.title || '',
         description: initialData.description || '',
-        meetingType: initialData.meetingType || 'General',
+        meetingType: initialData.meetingType || 'Normal Meeting',
         mode: initialData.mode || 'Offline',
         visibility: initialData.visibility || 'Private',
         date: formattedDate,
@@ -44,16 +50,18 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
         endTime: initialData.endTime || '',
         venue: initialData.venue || '',
         link: initialData.link || '',
-        participants: initialData.participants?.map((p: any) => p._id || p) || []
+        recurrencePattern: initialData.recurrencePattern || 'None',
+        recurrenceCount: initialData.recurrenceCount || 1,
+        participants: initialData.participants?.map((p: any) => p.user?._id || p.user || p._id || p) || []
       });
     }
   }, [initialData]);
 
   const [availableUsers] = useState([
-    { id: '1', name: 'Alice Smith', email: 'alice@example.com' },
-    { id: '2', name: 'Bob Johnson', email: 'bob@example.com' },
-    { id: '3', name: 'Charlie Brown', email: 'charlie@example.com' },
-    { id: '4', name: 'Diana Prince', email: 'diana@example.com' },
+    { id: '65f0a1b2c3d4e5f607890ab1', name: 'Alice Smith', email: 'alice@example.com' },
+    { id: '65f0a1b2c3d4e5f607890ab2', name: 'Bob Johnson', email: 'bob@example.com' },
+    { id: '65f0a1b2c3d4e5f607890ab3', name: 'Charlie Brown', email: 'charlie@example.com' },
+    { id: '65f0a1b2c3d4e5f607890ab4', name: 'Diana Prince', email: 'diana@example.com' },
   ]);
 
   const toggleParticipant = (userId: string) => {
@@ -109,8 +117,8 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
       if (mode === 'create') {
         // Reset form on success
         setFormData({
-          title: '', description: '', meetingType: 'General', mode: 'Offline', visibility: 'Private',
-          date: '', startTime: '', endTime: '', venue: '', link: '', participants: []
+          title: '', description: '', meetingType: 'Normal Meeting', mode: 'Offline', visibility: 'Private',
+          date: '', startTime: '', endTime: '', venue: '', link: '', recurrencePattern: 'None', recurrenceCount: 1, participants: []
         });
         
         // Also redirect back to the meetings list so they see it in the table!
@@ -185,23 +193,26 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
                 className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
               />
             </div>
-            <div>
+            <div className="mb-8">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-              <textarea 
-                name="description" value={formData.description} onChange={handleChange} rows={3}
-                placeholder="What is this meeting about?"
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
-              />
+              <div className="bg-white dark:bg-gray-900 pb-10">
+                <ReactQuill theme="snow" value={formData.description} onChange={(val) => setFormData({...formData, description: val})} className="h-32" />
+              </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Meeting Category</label>
                 <select name="meetingType" value={formData.meetingType} onChange={handleChange} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all">
-                  <option value="General">General</option>
-                  <option value="Board">Board Meeting</option>
-                  <option value="Department">Department Sync</option>
-                  <option value="Emergency">Emergency</option>
+                  <option value="Normal Meeting">Normal Meeting</option>
+                  <option value="Board Meeting">Board Meeting</option>
+                  <option value="Department Meeting">Department Meeting</option>
+                  <option value="Review Meeting">Review Meeting</option>
+                  <option value="Online Conference">Online Conference</option>
+                  <option value="Committee Meeting">Committee Meeting</option>
+                  <option value="Emergency Meeting">Emergency Meeting</option>
+                  <option value="Periodic Meeting">Periodic Meeting</option>
+                  <option value="Scheduled Meeting">Scheduled Meeting</option>
                 </select>
               </div>
               <div>
@@ -244,6 +255,30 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
                 className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all" 
               />
             </div>
+            
+            {mode === 'create' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Recurrence</label>
+                  <select name="recurrencePattern" value={formData.recurrencePattern} onChange={handleChange} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all">
+                    <option value="None">Does not repeat</option>
+                    <option value="Daily">Daily</option>
+                    <option value="Weekly">Weekly</option>
+                    <option value="Bi-Weekly">Bi-Weekly</option>
+                    <option value="Monthly">Monthly</option>
+                  </select>
+                </div>
+                {formData.recurrencePattern !== 'None' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Total Occurrences</label>
+                    <input 
+                      type="number" min="2" max="12" name="recurrenceCount" value={formData.recurrenceCount} onChange={handleChange}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all" 
+                    />
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </section>
 
@@ -267,12 +302,16 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
             {formData.mode !== 'Online' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1"><MapPin size={14} /> Venue Room *</label>
-                <select name="venue" required value={formData.venue} onChange={handleChange} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 transition-all">
-                  <option value="">Select a Venue</option>
-                  <option value="Conference Room A">Conference Room A</option>
-                  <option value="Auditorium">Main Auditorium</option>
-                  <option value="Board Room">Executive Board Room</option>
-                </select>
+                <input 
+                  name="venue" required list="venues" value={formData.venue} onChange={handleChange} 
+                  placeholder="Type or select a venue"
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 transition-all"
+                />
+                <datalist id="venues">
+                  <option value="Conference Room A" />
+                  <option value="Main Auditorium" />
+                  <option value="Executive Board Room" />
+                </datalist>
               </div>
             )}
 

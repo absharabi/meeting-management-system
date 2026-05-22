@@ -4,7 +4,8 @@ import {
   getMeetings, 
   updateMeeting, 
   deleteMeeting, 
-  markAttendance 
+  markAttendance,
+  rsvpMeeting
 } from '../controllers/meeting.controller';
 import { protect } from '../middleware/auth.middleware';
 
@@ -21,5 +22,11 @@ router.delete('/:id', deleteMeeting);
 
 // Specific Feature Routes
 router.post('/:id/attendance', markAttendance);
+router.post('/:id/rsvp', rsvpMeeting);
+
+import agendaRoutes from './agenda.routes';
+
+// Agenda Routes
+router.use('/:meetingId/agendas', agendaRoutes);
 
 export default router;
