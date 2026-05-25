@@ -7,6 +7,7 @@ import 'react-quill-new/dist/quill.snow.css';
 
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 
 interface MeetingFormProps {
   initialData?: any;
@@ -111,8 +112,9 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
 
       setSuccess(`Meeting ${mode === 'edit' ? 'updated' : 'created'} successfully!`);
       
-      // Explicit popup message so the user immediately knows it worked
-      window.alert(`Meeting Successfully ${mode === 'edit' ? 'updated' : 'created'}!`);
+      // We removed the manual toast.success here because the backend 
+      // automatically emits a Socket.io notification for creations/updates,
+      // which triggers the toast in NotificationDropdown.tsx instead!
       
       if (mode === 'create') {
         // Reset form on success
@@ -133,6 +135,7 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
       }
     } catch (err: any) {
       setError(err.message || 'Failed to process request. Venue conflict detected.');
+      toast.error(err.message || 'Failed to process request.');
     } finally {
       setIsSubmitting(false);
     }

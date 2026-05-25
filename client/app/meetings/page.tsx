@@ -10,6 +10,9 @@ export default function MeetingsPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Dummy current user (Auth is bypassed for dev)
+  const currentUser = { id: '65f0a1b2c3d4e5f607890abc', role: 'SuperAdmin' };
+
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-950 overflow-hidden font-sans transition-colors">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
@@ -79,7 +82,7 @@ export default function MeetingsPage() {
             </div>
             
             <div className="pb-8">
-              <MeetingTable searchQuery={searchQuery} />
+              <MeetingTable searchQuery={searchQuery} currentUser={currentUser} />
             </div>
             
           </div>

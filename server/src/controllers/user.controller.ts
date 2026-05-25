@@ -11,6 +11,41 @@ export const getUsers = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+export const getMe = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const requestingUser = (req as any).user || { id: '65f0a1b2c3d4e5f607890abc' };
+    const user = await User.findById(requestingUser.id).select('-googleId');
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+    res.json(user);
+  } catch {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const updateMyProfile = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const requestingUser = (req as any).user || { id: '65f0a1b2c3d4e5f607890abc' };
+    const { name, department } = req.body;
+    
+    const user = await User.findByIdAndUpdate(
+      requestingUser.id,
+      { $set: { name, department } },
+      { new: true }
+    ).select('-googleId');
+    
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating profile', error });
+  }
+};
+
 export const addUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name, email, role, department } = req.body;
@@ -143,5 +178,48 @@ export const bulkAddUsers = async (req: Request, res: Response): Promise<void> =
     });
   } catch {
     res.status(500).json({ message: 'Failed to process Excel file' });
+  }
+};
+
+export const updatePreferences = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const requestingUser = (req as any).user || { id: '65f0a1b2c3d4e5f607890abc' };
+    const { notificationPreferences } = req.body;
+
+    const updated = await User.findByIdAndUpdate(
+      requestingUser.id,
+      { notificationPreferences },
+      { new: true, runValidators: true }
+    ).select('notificationPreferences');
+
+    res.json(updated?.notificationPreferences);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error while updating preferences', error });
+  }
+};
+
+export const toggleMuteMeeting = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const requestingUser = (req as any).user || { id: '65f0a1b2c3d4e5f607890abc' };
+    const meetingId = req.params.meetingId;
+
+    const user = await User.findById(requestingUser.id);
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    const isMuted = user.mutedMeetings.some(id => id.toString() === meetingId);
+    
+    if (isMuted) {
+      user.mutedMeetings = user.mutedMeetings.filter(id => id.toString() !== meetingId);
+    } else {
+      user.mutedMeetings.push(meetingId as any);
+    }
+
+    await user.save();
+    res.json({ mutedMeetings: user.mutedMeetings });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error while toggling mute', error });
   }
 };

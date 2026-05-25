@@ -1,6 +1,9 @@
 import { Request, Response } from 'express';
 import Agenda, { AgendaStatus } from '../models/Agenda';
 import Meeting from '../models/Meeting';
+import Notification from '../models/Notification';
+import User from '../models/User';
+import { emitNotification } from '../services/socketService';
 
 export const createAgenda = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -25,6 +28,25 @@ export const createAgenda = async (req: Request, res: Response): Promise<void> =
       proposedBy: requestingUser.id,
       status,
     });
+
+    if (meeting.organizerId.toString() !== requestingUser.id) {
+      const organizer = await User.findById(meeting.organizerId);
+      if (
+        organizer && 
+        organizer.notificationPreferences?.enabled !== false && 
+        organizer.notificationPreferences?.agendaUpdates !== false &&
+        !organizer.mutedMeetings?.includes(meetingId as any)
+      ) {
+        const notif = await Notification.create({
+          recipient: meeting.organizerId,
+          type: 'Agenda Proposed',
+          message: `A new agenda item was proposed for: ${meeting.title}`,
+          relatedMeeting: meetingId,
+          actionUrl: `/meetings/${meetingId}`
+        });
+        emitNotification(notif.recipient.toString(), notif);
+      }
+    }
 
     res.status(201).json(newAgenda);
   } catch (error) {
@@ -58,6 +80,26 @@ export const updateAgendaStatus = async (req: Request, res: Response): Promise<v
     if (!agenda) {
       res.status(404).json({ message: 'Agenda not found' });
       return;
+    }
+
+    const requestingUser = (req as any).user || { id: '65f0a1b2c3d4e5f607890abc' };
+    if (agenda.proposedBy && agenda.proposedBy._id.toString() !== requestingUser.id) {
+      const proposer = await User.findById(agenda.proposedBy._id);
+      if (
+        proposer && 
+        proposer.notificationPreferences?.enabled !== false && 
+        proposer.notificationPreferences?.agendaUpdates !== false &&
+        !proposer.mutedMeetings?.includes(agenda.meetingId as any)
+      ) {
+        const notif = await Notification.create({
+          recipient: agenda.proposedBy._id,
+          type: `Agenda ${status}`,
+          message: `Your proposed agenda item was ${status.toLowerCase()}`,
+          relatedMeeting: agenda.meetingId,
+          actionUrl: `/meetings/${agenda.meetingId}`
+        });
+        emitNotification(notif.recipient.toString(), notif);
+      }
     }
 
     res.json(agenda);

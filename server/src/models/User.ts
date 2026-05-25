@@ -15,6 +15,13 @@ export interface IUser extends Document {
   role:       Role;
   department: string;
   isActive:   boolean;
+  notificationPreferences: {
+    enabled: boolean;
+    meetingUpdates: boolean;
+    reminders: boolean;
+    agendaUpdates: boolean;
+  };
+  mutedMeetings: mongoose.Types.ObjectId[];
   createdAt:  Date;
   updatedAt:  Date;
 }
@@ -28,6 +35,13 @@ const UserSchema = new Schema<IUser>(
     role:       { type: String, enum: Object.values(Role), default: Role.User },
     department: { type: String, default: '' },
     isActive:   { type: Boolean, default: true },
+    notificationPreferences: {
+      enabled: { type: Boolean, default: true },
+      meetingUpdates: { type: Boolean, default: true },
+      reminders: { type: Boolean, default: true },
+      agendaUpdates: { type: Boolean, default: true }
+    },
+    mutedMeetings: [{ type: Schema.Types.ObjectId, ref: 'Meeting' }]
   },
   { timestamps: true }
 );

@@ -2,7 +2,9 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Meeting, { MeetingMode, MeetingStatus } from '../models/Meeting';
 import { Role } from '../models/User';
+import Notification from '../models/Notification';
 import { sendEmail } from '../utils/email';
+import { emitNotification } from '../services/socketService';
 
 // Helper to check if a user is a global admin
 const isGlobalAdmin = (role: string) => {
@@ -70,8 +72,8 @@ export const createMeeting = async (req: Request, res: Response): Promise<void> 
     const createdMeetings = await Meeting.insertMany(meetingsToCreate);
     const newMeeting = createdMeetings[0]; // The first one for the email
 
-    // Populate to get emails
-    const populatedMeeting = await Meeting.findById(newMeeting._id).populate('participants.user', 'email name');
+    // Populate to get emails and preferences
+    const populatedMeeting = await Meeting.findById(newMeeting._id).populate('participants.user', 'email name notificationPreferences mutedMeetings');
     if (!populatedMeeting) {
       res.status(500).json({ message: 'Failed to populate created meeting' });
       return;
@@ -105,6 +107,42 @@ export const createMeeting = async (req: Request, res: Response): Promise<void> 
         );
       }
     });
+
+    // Create in-app notifications
+    const notificationsToCreate: any[] = [];
+    
+    // Add one for the organizer
+    notificationsToCreate.push({
+      recipient: requestingUser.id,
+      type: 'Meeting Created',
+      message: `You successfully scheduled: ${newMeeting.title}`,
+      relatedMeeting: newMeeting._id,
+      actionUrl: `/meetings/${newMeeting._id}`
+    });
+
+    populatedMeeting.participants.forEach((p: any) => {
+      const userDoc = p.user;
+      if (userDoc && userDoc._id) {
+        // Check preferences and muting
+        if (userDoc.notificationPreferences?.enabled === false) return;
+        if (userDoc.notificationPreferences?.meetingUpdates === false) return;
+        if (userDoc.mutedMeetings?.includes(newMeeting._id)) return;
+
+        notificationsToCreate.push({
+          recipient: userDoc._id,
+          type: 'Meeting Created',
+          message: `You have been invited to a new meeting: ${newMeeting.title}`,
+          relatedMeeting: newMeeting._id,
+          actionUrl: `/meetings/${newMeeting._id}`
+        });
+      }
+    });
+    if (notificationsToCreate.length > 0) {
+      const createdNotifications = await Notification.insertMany(notificationsToCreate);
+      createdNotifications.forEach((notification) => {
+        emitNotification(notification.recipient.toString(), notification);
+      });
+    }
 
     res.status(201).json(populatedMeeting);
   } catch (error) {
@@ -193,6 +231,45 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
     }
 
     const updated = await Meeting.findByIdAndUpdate(meetingId, updateData, { new: true });
+    
+    // Create in-app notifications
+    if (updated) {
+      const populatedMeeting = await Meeting.findById(updated._id).populate('participants.user', 'email name notificationPreferences mutedMeetings');
+      const notificationsToCreate: any[] = [];
+      
+      // Add one for the organizer
+      notificationsToCreate.push({
+        recipient: requestingUser.id,
+        type: 'Meeting Updated',
+        message: `You updated the meeting: ${updated.title}`,
+        relatedMeeting: updated._id,
+        actionUrl: `/meetings/${updated._id}`
+      });
+
+      populatedMeeting?.participants.forEach((p: any) => {
+        const userDoc = p.user;
+        if (userDoc && userDoc._id) {
+          if (userDoc.notificationPreferences?.enabled === false) return;
+          if (userDoc.notificationPreferences?.meetingUpdates === false) return;
+          if (userDoc.mutedMeetings?.includes(updated._id)) return;
+
+          notificationsToCreate.push({
+            recipient: userDoc._id,
+            type: 'Meeting Updated',
+            message: `Meeting details updated: ${updated.title}`,
+            relatedMeeting: updated._id,
+            actionUrl: `/meetings/${updated._id}`
+          });
+        }
+      });
+      if (notificationsToCreate.length > 0) {
+        const createdNotifications = await Notification.insertMany(notificationsToCreate);
+        createdNotifications.forEach((notification) => {
+          emitNotification(notification.recipient.toString(), notification);
+        });
+      }
+    }
+
     res.json(updated);
   } catch (error) {
     res.status(500).json({ message: 'Server error while updating meeting', error });
@@ -214,7 +291,41 @@ export const deleteMeeting = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    const populatedTarget = await Meeting.findById(req.params.id).populate('participants.user', 'email name notificationPreferences mutedMeetings');
     const deleted = await Meeting.findByIdAndDelete(req.params.id);
+
+    // Create in-app notifications
+    if (populatedTarget) {
+      const notificationsToCreate: any[] = [];
+      
+      // Add one for the organizer
+      notificationsToCreate.push({
+        recipient: requestingUser.id,
+        type: 'Meeting Cancelled',
+        message: `You successfully cancelled: ${populatedTarget.title}`
+      });
+
+      populatedTarget.participants.forEach((p: any) => {
+        const userDoc = p.user;
+        if (userDoc && userDoc._id) {
+          if (userDoc.notificationPreferences?.enabled === false) return;
+          if (userDoc.notificationPreferences?.meetingUpdates === false) return;
+          if (userDoc.mutedMeetings?.includes(populatedTarget._id)) return;
+
+          notificationsToCreate.push({
+            recipient: userDoc._id,
+            type: 'Meeting Cancelled',
+            message: `Meeting has been cancelled: ${populatedTarget.title}`
+          });
+        }
+      });
+      if (notificationsToCreate.length > 0) {
+        const createdNotifications = await Notification.insertMany(notificationsToCreate);
+        createdNotifications.forEach((notification) => {
+          emitNotification(notification.recipient.toString(), notification);
+        });
+      }
+    }
 
     res.json({ message: 'Meeting successfully deleted' });
   } catch (error) {

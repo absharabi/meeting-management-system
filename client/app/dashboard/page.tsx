@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Navbar from '../../components/Navbar';
 import Sidebar from '../../components/Sidebar';
 import DashboardCard from '../../components/DashboardCard';
@@ -19,6 +20,7 @@ interface User {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -81,10 +83,10 @@ export default function DashboardPage() {
           <div className="mt-8 mb-4">
             <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">System Management</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <ActionCard title="Role Assignment" description="Manage access control" icon={ShieldCheck} color="blue" />
-              <ActionCard title="System Settings" description="Configure platform" icon={Settings} color="purple" />
-              <ActionCard title="Audit Logs" description="View security logs" icon={FileText} color="amber" />
-              <ActionCard title="Export Reports" description="Download PDF/Excel" icon={Download} color="green" />
+              <ActionCard title="Role Assignment" description="Manage access control" icon={ShieldCheck} color="blue" onClick={() => alert('Role Assignment coming soon')} />
+              <ActionCard title="System Settings" description="Configure platform" icon={Settings} color="purple" onClick={() => alert('System Settings coming soon')} />
+              <ActionCard title="Audit Logs" description="View security logs" icon={FileText} color="amber" onClick={() => alert('Audit Logs coming soon')} />
+              <ActionCard title="Export Reports" description="Download PDF/Excel" icon={Download} color="green" onClick={() => alert('Export Reports coming soon')} />
             </div>
           </div>
 
@@ -138,10 +140,10 @@ export default function DashboardPage() {
         <div className="mt-8 mb-4">
           <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Quick Actions</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <ActionCard title="Schedule Meeting" description="Create a new event" icon={CalendarPlus} color="blue" />
-            <ActionCard title="Upload Documents" description="Attach meeting agendas" icon={FileText} color="purple" />
-            <ActionCard title="Live Notifications" description="Send reminders" icon={Bell} color="amber" />
-            <ActionCard title="Start Online Sync" description="Google Meet Integration" icon={Video} color="green" />
+            <ActionCard title="Schedule Meeting" description="Create a new event" icon={CalendarPlus} color="blue" onClick={() => router.push('/meetings/create')} />
+            <ActionCard title="Manage Agendas" description="Attach meeting agendas" icon={FileText} color="purple" onClick={() => router.push('/meetings')} />
+            <ActionCard title="Live Notifications" description="Send reminders" icon={Bell} color="amber" onClick={() => alert('Live notifications coming soon')} />
+            <ActionCard title="Start Online Sync" description="Google Meet Integration" icon={Video} color="green" onClick={() => window.open('https://meet.google.com/new', '_blank')} />
           </div>
         </div>
 

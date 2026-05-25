@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Bell, UserCircle, Search, Menu, Sun, Moon } from 'lucide-react';
+import { UserCircle, Search, Menu, Sun, Moon } from 'lucide-react';
+import NotificationDropdown from './NotificationDropdown';
 import { useTheme } from 'next-themes';
+import Link from 'next/link';
 
 interface NavbarProps {
   onMenuClick: () => void;
@@ -13,7 +15,6 @@ interface NavbarProps {
 export default function Navbar({ onMenuClick, searchQuery = '', onSearchChange }: NavbarProps) {
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   useEffect(() => {
@@ -55,33 +56,7 @@ export default function Navbar({ onMenuClick, searchQuery = '', onSearchChange }
         )}
 
         {/* Notifications */}
-        <div className="relative">
-          <button 
-            onClick={() => setShowNotifications(!showNotifications)}
-            className="p-2 rounded-full hover:bg-blue-800 dark:hover:bg-gray-800 relative transition-colors"
-          >
-            <Bell size={22} />
-            <span className="absolute top-1 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-blue-900 dark:border-gray-950"></span>
-          </button>
-          
-          {showNotifications && (
-            <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden text-gray-800 dark:text-gray-200">
-              <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-                <h3 className="font-semibold">Notifications</h3>
-              </div>
-              <div className="max-h-64 overflow-y-auto">
-                <div className="p-4 border-b border-gray-50 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer">
-                  <p className="text-sm font-medium">Upcoming Meeting</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Design Sync in 15 mins</p>
-                </div>
-                <div className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer">
-                  <p className="text-sm font-medium">New Invite</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">You were invited to Q3 Planning</p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        <NotificationDropdown />
 
         {/* Profile Dropdown */}
         <div className="relative">
@@ -95,8 +70,8 @@ export default function Navbar({ onMenuClick, searchQuery = '', onSearchChange }
           {showProfileMenu && (
             <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden text-gray-800 dark:text-gray-200">
               <div className="py-1">
-                <button className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">Profile</button>
-                <button className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">Settings</button>
+                <Link href="/settings" className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">Profile</Link>
+                <Link href="/settings" className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">Settings</Link>
                 <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                 <button className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">Logout</button>
               </div>

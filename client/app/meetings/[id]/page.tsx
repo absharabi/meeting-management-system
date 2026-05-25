@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Calendar, Clock, MapPin, Users, FileText, CheckCircle, Clock as ClockIcon, Download, Plus, Trash2, GripVertical } from 'lucide-react';
+import { Calendar, Clock, MapPin, Users, FileText, CheckCircle, Clock as ClockIcon, Download, Plus, Trash2, GripVertical, BellOff, Bell } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -22,6 +22,7 @@ export default function MeetingDetailsPage() {
   const [meeting, setMeeting] = useState<any>(null);
   const [agendas, setAgendas] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
   
   // Dummy current user for testing
   const currentUser = { id: '65f0a1b2c3d4e5f607890abc', role: 'SuperAdmin' };
@@ -42,6 +43,15 @@ export default function MeetingDetailsPage() {
         const aRes = await fetch(`http://localhost:5000/api/meetings/${meetingId}/agendas`);
         const agendasData = await aRes.json();
         setAgendas(agendasData);
+      }
+
+      // Fetch user to get muted status
+      const uRes = await fetch(`http://localhost:5000/api/users/me`);
+      if (uRes.ok) {
+        const user = await uRes.json();
+        if (user.mutedMeetings?.includes(meetingId)) {
+          setIsMuted(true);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch data', error);
@@ -128,6 +138,19 @@ export default function MeetingDetailsPage() {
     }
   };
 
+  const handleToggleMute = async () => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/users/mute-meeting/${meetingId}`, {
+        method: 'PUT'
+      });
+      if (res.ok) {
+        setIsMuted(!isMuted);
+      }
+    } catch (error) {
+      console.error('Failed to toggle mute', error);
+    }
+  };
+
   const stripHtml = (html: string) => {
     if (!html) return 'N/A';
     return html.replace(/<[^>]+>/g, '').trim() || 'N/A';
@@ -208,6 +231,17 @@ export default function MeetingDetailsPage() {
           </div>
           
           <div className="flex gap-2">
+            <button 
+              onClick={handleToggleMute} 
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                isMuted 
+                  ? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' 
+                  : 'bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40'
+              }`}
+            >
+              {isMuted ? <BellOff size={16} /> : <Bell size={16} />} 
+              {isMuted ? 'Muted' : 'Mute'}
+            </button>
             <button onClick={exportPDF} className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 rounded-lg text-sm font-medium transition-colors">
               <Download size={16} /> PDF Agenda
             </button>

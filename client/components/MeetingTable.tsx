@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MoreHorizontal, Edit, Trash2, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import Link from 'next/link';
+import toast from 'react-hot-toast';
 
 interface User {
   _id: string;
@@ -60,12 +61,14 @@ export default function MeetingTable({
         method: 'DELETE',
       });
       if (res.ok) {
+        toast.success('Meeting deleted successfully!');
         setMeetings(prev => prev.filter(m => m._id !== id));
       } else {
-        alert('Failed to delete meeting');
+        toast.error('Failed to delete meeting');
       }
     } catch (error) {
       console.error('Failed to delete', error);
+      toast.error('An error occurred while deleting');
     }
   };
 
@@ -79,12 +82,14 @@ export default function MeetingTable({
       if (res.ok) {
         setOpenDropdownId(null);
         fetchMeetings(); // Refresh to show updated status
+        toast.success(`RSVP updated to ${status}`);
       } else {
         const err = await res.json();
-        alert(err.message || 'Failed to update RSVP');
+        toast.error(err.message || 'Failed to update RSVP');
       }
     } catch (error) {
       console.error('Failed to RSVP', error);
+      toast.error('An error occurred while updating RSVP');
     }
   };
 
@@ -253,12 +258,16 @@ export default function MeetingTable({
                           {currentUser && (meeting.organizerId?._id === currentUser.id || meeting.organizerId?._id === currentUser._id || currentUser.role === 'SuperAdmin' || currentUser.role === 'Admin') && (
                             <>
                               <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                              <button className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 w-full text-left">
+                              <button onClick={() => alert('Mark Attendance coming soon')} className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 w-full text-left">
                                 Mark Attendance
                               </button>
-                              <button className="flex items-center gap-2 px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 w-full text-left">
-                                Upload Documents
-                              </button>
+                              <Link 
+                                href={`/meetings/${meeting._id}`}
+                                className="flex items-center gap-2 px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 w-full text-left"
+                                onClick={() => setOpenDropdownId(null)}
+                              >
+                                Manage Agenda
+                              </Link>
                               
                               <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                               <Link 
