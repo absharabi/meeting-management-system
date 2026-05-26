@@ -94,6 +94,19 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
   const [drawerUser, setDrawerUser] = useState<ManagedUser | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState("User");
+
+  useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        setCurrentUserRole(parsed.role || 'User');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
 
   const notify = useCallback((message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });
@@ -298,7 +311,7 @@ export default function UsersPage() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 font-sans text-gray-900 transition-colors dark:bg-gray-950 dark:text-gray-100">
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} userRole="SuperAdmin" />
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} userRole={currentUserRole} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Navbar onMenuClick={() => setIsSidebarOpen(true)} searchQuery={searchQuery} onSearchChange={setSearchQuery} />

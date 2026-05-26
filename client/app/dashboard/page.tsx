@@ -24,6 +24,7 @@ export default function DashboardPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -39,6 +40,7 @@ export default function DashboardPage() {
 
     if (token || userParam) {
       window.history.replaceState(null, '', '/dashboard');
+      window.dispatchEvent(new Event('auth-change'));
     }
 
     try {
@@ -49,6 +51,8 @@ export default function DashboardPage() {
     } catch (e) {
       console.error('Failed to parse user', e);
     }
+    
+    setIsMounted(true);
   }, []);
 
   const role = currentUser?.role || 'User';
@@ -172,22 +176,28 @@ export default function DashboardPage() {
         />
         
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50/50 dark:bg-gray-950/50 p-4 md:p-8">
-          <div className="max-w-7xl mx-auto space-y-6">
-            <header className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 p-8 shadow-lg mb-8">
-              <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-white opacity-10 blur-3xl"></div>
-              <div className="relative z-10 flex justify-between items-center">
-                <div>
-                  <h1 className="text-3xl font-bold text-white tracking-tight">Welcome back, {greetingName}! 👋</h1>
-                  <p className="text-blue-100 mt-2 text-sm md:text-base">
-                    {getSubtitle()}
-                  </p>
+          {!isMounted ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : (
+            <div className="max-w-7xl mx-auto space-y-6">
+              <header className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 p-8 shadow-lg mb-8">
+                <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-white opacity-10 blur-3xl"></div>
+                <div className="relative z-10 flex justify-between items-center">
+                  <div>
+                    <h1 className="text-3xl font-bold text-white tracking-tight">Welcome back, {greetingName}! 👋</h1>
+                    <p className="text-blue-100 mt-2 text-sm md:text-base">
+                      {getSubtitle()}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </header>
-            
-            {renderDashboardContent()}
-            
-          </div>
+              </header>
+              
+              {renderDashboardContent()}
+              
+            </div>
+          )}
         </main>
       </div>
     </div>

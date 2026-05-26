@@ -43,7 +43,10 @@ export default function MeetingTable({
   const fetchMeetings = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch('http://localhost:5000/api/meetings');
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch('http://localhost:5000/api/meetings', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       if (res.ok) {
         const data = await res.json();
         setMeetings(data);
@@ -63,8 +66,10 @@ export default function MeetingTable({
     if (!window.confirm('Are you sure you want to delete this meeting?')) return;
     
     try {
+      const token = localStorage.getItem('accessToken');
       const res = await fetch(`http://localhost:5000/api/meetings/${id}`, {
         method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         toast.success('Meeting deleted successfully!');
@@ -80,9 +85,13 @@ export default function MeetingTable({
 
   const handleRSVP = async (id: string, status: string) => {
     try {
+      const token = localStorage.getItem('accessToken');
       const res = await fetch(`http://localhost:5000/api/meetings/${id}/rsvp`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ status })
       });
       if (res.ok) {
@@ -128,9 +137,13 @@ export default function MeetingTable({
     if (!attendanceModalMeeting) return;
     setIsSubmittingAttendance(true);
     try {
+      const token = localStorage.getItem('accessToken');
       const res = await fetch(`http://localhost:5000/api/meetings/${attendanceModalMeeting._id}/attendance`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ attendanceList: Array.from(attendedIds) })
       });
       if (res.ok) {

@@ -12,7 +12,7 @@ import { protect } from '../middleware/auth.middleware';
 const router = express.Router();
 
 // All meeting routes require authentication
-// router.use(protect); // Temporarily commented out for testing without Google Auth
+router.use(protect);
 
 // CRUD Routes
 router.post('/', createMeeting);

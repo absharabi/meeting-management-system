@@ -26,39 +26,44 @@ export default function MeetingDetailsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const [newActionItem, setNewActionItem] = useState({ title: '', assigneeId: '', dueDate: '' });
+  const [currentUser, setCurrentUser] = useState<any>(null);
   
-  // Dummy current user for testing
-  const currentUser = { id: '65f0a1b2c3d4e5f607890abc', role: 'SuperAdmin' };
-
   const [newAgenda, setNewAgenda] = useState({ title: '', description: '', timeAllocated: 15, isEmergency: false });
 
   const fetchMeetingAndAgendas = async () => {
     try {
       setIsLoading(true);
+      const token = localStorage.getItem('accessToken');
       // Fetch meeting details (in a real app, you'd have a GET /api/meetings/:id endpoint)
       // Since we don't have one, we fetch all and find it
-      const mRes = await fetch(`http://localhost:5000/api/meetings`);
+      const mRes = await fetch(`http://localhost:5000/api/meetings`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       const meetings = await mRes.json();
       const foundMeeting = meetings.find((m: any) => m._id === meetingId);
       setMeeting(foundMeeting);
 
       if (foundMeeting) {
-        const aRes = await fetch(`http://localhost:5000/api/meetings/${meetingId}/agendas`);
+        const aRes = await fetch(`http://localhost:5000/api/meetings/${meetingId}/agendas`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
         const agendasData = await aRes.json();
         setAgendas(agendasData);
       }
 
       // Fetch user to get muted status
-      const uRes = await fetch(`http://localhost:5000/api/users/me`);
+      const uRes = await fetch(`http://localhost:5000/api/users/me`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       if (uRes.ok) {
         const user = await uRes.json();
+        setCurrentUser(user);
         if (user.mutedMeetings?.includes(meetingId)) {
           setIsMuted(true);
         }
       }
 
       // Fetch action items for this meeting
-      const token = localStorage.getItem('accessToken');
       const actionRes = await fetch(`http://localhost:5000/api/action-items/meeting/${meetingId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -80,10 +85,14 @@ export default function MeetingDetailsPage() {
   const handleAddAgenda = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const token = localStorage.getItem('accessToken');
       const payload = { ...newAgenda, sequence: agendas.length + 1 };
       const res = await fetch(`http://localhost:5000/api/meetings/${meetingId}/agendas`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(payload)
       });
       if (res.ok) {
@@ -138,9 +147,13 @@ export default function MeetingDetailsPage() {
       const updatedItems = newAgendas.map((item, idx) => ({ id: item._id, sequence: idx + 1 }));
       
       try {
+        const token = localStorage.getItem('accessToken');
         await fetch(`http://localhost:5000/api/meetings/${meetingId}/agendas/reorder`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
           body: JSON.stringify({ items: updatedItems })
         });
       } catch (err) {
@@ -151,9 +164,13 @@ export default function MeetingDetailsPage() {
 
   const handleApprove = async (agendaId: string) => {
     try {
-      await fetch(`http://localhost:5000/api/meetings/${meetingId}/agendas/${agendaId}/status`, {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`http://localhost:5000/api/meetings/${meetingId}/agendas/${agendaId}/status`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ status: 'Approved' })
       });
       fetchMeetingAndAgendas();
@@ -165,8 +182,10 @@ export default function MeetingDetailsPage() {
   const handleDeleteAgenda = async (agendaId: string) => {
     if (!confirm('Delete this agenda item?')) return;
     try {
+      const token = localStorage.getItem('accessToken');
       await fetch(`http://localhost:5000/api/meetings/${meetingId}/agendas/${agendaId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       fetchMeetingAndAgendas();
     } catch (error) {
@@ -176,8 +195,10 @@ export default function MeetingDetailsPage() {
 
   const handleToggleMute = async () => {
     try {
+      const token = localStorage.getItem('accessToken');
       const res = await fetch(`http://localhost:5000/api/users/mute-meeting/${meetingId}`, {
-        method: 'PUT'
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
         setIsMuted(!isMuted);
@@ -276,7 +297,17 @@ export default function MeetingDetailsPage() {
   if (isLoading) return <div className="p-8 text-center text-gray-500">Loading meeting details...</div>;
   if (!meeting) return <div className="p-8 text-center text-red-500">Meeting not found</div>;
 
-  const isOrganizerOrAdmin = currentUser.role === 'SuperAdmin' || meeting.organizerId?._id === currentUser.id;
+  const isOrganizerOrAdmin = currentUser && (
+    currentUser.role === 'SuperAdmin' || 
+    currentUser.role === 'Admin' || 
+    meeting.organizerId === currentUser._id || 
+    meeting.organizerId?._id === currentUser._id
+  );
+
+  const isAdminOrSuperAdmin = currentUser && (
+    currentUser.role === 'SuperAdmin' || 
+    currentUser.role === 'Admin'
+  );
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 p-6">
@@ -554,7 +585,7 @@ export default function MeetingDetailsPage() {
           </div>
 
           {/* Action Items Form */}
-          {isOrganizerOrAdmin && (
+          {isAdminOrSuperAdmin && (
             <div className="p-5 bg-gray-50 dark:bg-gray-800/50">
               <h4 className="font-medium text-sm text-gray-900 dark:text-white mb-3">Assign New Task</h4>
               <form onSubmit={handleAddActionItem} className="space-y-3">

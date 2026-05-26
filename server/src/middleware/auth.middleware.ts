@@ -6,11 +6,6 @@ export interface AuthRequest extends Request {
 }
 
 export const protect = (req: Request, res: Response, next: NextFunction): void => {
-  // TEMPORARY BYPASS FOR TESTING WITHOUT GOOGLE AUTH
-  (req as AuthRequest).user = { id: '65f0a1b2c3d4e5f607890abc', role: 'SuperAdmin' };
-  next();
-  return;
-  
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {
     res.status(401).json({ message: 'No token provided' });

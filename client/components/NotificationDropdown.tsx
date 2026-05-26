@@ -65,7 +65,10 @@ export default function NotificationDropdown() {
 
   const fetchNotifications = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/notifications');
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch('http://localhost:5000/api/notifications', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       if (res.ok) {
         const data = await res.json();
         setNotifications(data);
@@ -78,8 +81,18 @@ export default function NotificationDropdown() {
   useEffect(() => {
     fetchNotifications();
     
-    // Current user dummy ID (in real app comes from AuthContext)
-    const currentUserId = '65f0a1b2c3d4e5f607890abc';
+    // Get user ID from token
+    let currentUserId = '';
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      try {
+        const payloadBase64 = token.split('.')[1];
+        const payload = JSON.parse(atob(payloadBase64));
+        currentUserId = payload.id;
+      } catch (e) {
+        console.error('Failed to parse token');
+      }
+    }
     
     // Initialize socket connection
     const socket = io('http://localhost:5000', {
@@ -144,7 +157,11 @@ export default function NotificationDropdown() {
 
   const markAsRead = async (id: string) => {
     try {
-      await fetch(`http://localhost:5000/api/notifications/${id}/read`, { method: 'PUT' });
+      const token = localStorage.getItem('accessToken');
+      await fetch(`http://localhost:5000/api/notifications/${id}/read`, { 
+        method: 'PUT',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       setNotifications(notifications.map(n => n._id === id ? { ...n, isRead: true } : n));
     } catch (error) {
       console.error('Failed to mark as read', error);
@@ -153,7 +170,11 @@ export default function NotificationDropdown() {
 
   const markAllAsRead = async () => {
     try {
-      await fetch('http://localhost:5000/api/notifications/read-all', { method: 'PUT' });
+      const token = localStorage.getItem('accessToken');
+      await fetch('http://localhost:5000/api/notifications/read-all', { 
+        method: 'PUT',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       setNotifications(notifications.map(n => ({ ...n, isRead: true })));
     } catch (error) {
       console.error('Failed to mark all as read', error);
@@ -163,7 +184,11 @@ export default function NotificationDropdown() {
   const deleteNotification = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await fetch(`http://localhost:5000/api/notifications/${id}`, { method: 'DELETE' });
+      const token = localStorage.getItem('accessToken');
+      await fetch(`http://localhost:5000/api/notifications/${id}`, { 
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       setNotifications(notifications.filter(n => n._id !== id));
     } catch (error) {
       console.error('Failed to delete notification', error);

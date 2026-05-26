@@ -6,7 +6,7 @@ export interface JwtPayload {
 }
 
 export const generateAccessToken = (userId: string, role: string) =>
-  jwt.sign({ id: userId, role }, process.env.JWT_SECRET!, { expiresIn: '15m' });
+  jwt.sign({ id: userId, role }, process.env.JWT_SECRET!, { expiresIn: '7d' });
 
 export const generateRefreshToken = (userId: string) =>
   jwt.sign({ id: userId }, process.env.JWT_REFRESH_SECRET!, { expiresIn: '7d' });
