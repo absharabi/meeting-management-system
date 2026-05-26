@@ -35,6 +35,27 @@ export const initSocketService = (server: HttpServer) => {
         }
       }
     });
+
+    // --- Live Collaborative Notes ---
+    
+    // User joins a specific meeting's live notes room
+    socket.on('join-meeting-room', (meetingId: string) => {
+      socket.join(`meeting_${meetingId}`);
+      console.log(`Socket ${socket.id} joined room: meeting_${meetingId}`);
+    });
+
+    // User leaves a specific meeting's live notes room
+    socket.on('leave-meeting-room', (meetingId: string) => {
+      socket.leave(`meeting_${meetingId}`);
+      console.log(`Socket ${socket.id} left room: meeting_${meetingId}`);
+    });
+
+    // User broadcasts a text update to everyone else in the room
+    socket.on('note-update', ({ meetingId, content }: { meetingId: string, content: string }) => {
+      // broadcast to everyone in the room EXCEPT the sender
+      socket.to(`meeting_${meetingId}`).emit('note-updated', content);
+    });
+
   });
 
   console.log('Socket Service initialized');

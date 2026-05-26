@@ -266,6 +266,7 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1"><Calendar size={14} /> Date *</label>
               <input 
                 type="date" required name="date" value={formData.date} onChange={handleChange}
+                min={new Date().toISOString().split('T')[0]}
                 className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all" 
               />
             </div>

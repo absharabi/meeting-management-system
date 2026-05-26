@@ -9,7 +9,12 @@ import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import meetingRoutes from './routes/meeting.routes';
 import notificationRoutes from './routes/notification.routes';
-import User from './models/User';
+import reportRoutes from './routes/report.routes';
+import feedbackRoutes from './routes/feedback.routes';
+import actionItemRoutes from './routes/actionItem.routes';
+import uploadRoutes from './routes/upload.routes';
+import path from 'path';
+import User, { Role } from './models/User';
 import { initReminderService } from './services/reminderService';
 import { initSocketService } from './services/socketService';
 import './config/passport';
@@ -68,6 +73,13 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/meetings', meetingRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/feedback', feedbackRoutes);
+app.use('/api/action-items', actionItemRoutes);
+app.use('/api/meetings', uploadRoutes); // Mounts /:id/upload-report
+
+// Serve uploaded files statically
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
