@@ -7,8 +7,11 @@ export const connectDB = async () => {
       serverSelectionTimeoutMS: 5000,
     });
     console.log('MongoDB connected to Atlas');
+    await seedSuperAdmin();
   } catch (err) {
-    console.warn('MongoDB Atlas connection failed. Attempting to start in-memory MongoDB server...');
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`MongoDB Atlas connection failed: ${message}`);
+    console.warn('Attempting to start in-memory MongoDB server...');
     try {
       process.env.MONGOMS_DOWNLOAD_BYPASS_MD5 = 'true';
       const { MongoMemoryServer } = require('mongodb-memory-server');
@@ -21,7 +24,6 @@ export const connectDB = async () => {
       await mongoose.connect(mongoUri);
       console.log('MongoDB connected to in-memory server:', mongoUri);
       
-      // Auto-seed SuperAdmin
       await seedSuperAdmin();
     } catch (memErr) {
       console.error('Failed to start in-memory MongoDB server:', memErr);
