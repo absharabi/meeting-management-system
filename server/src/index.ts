@@ -8,6 +8,7 @@ import { connectDB } from './config/db';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import meetingRoutes from './routes/meeting.routes';
+import momRoutes from './routes/mom';
 import notificationRoutes from './routes/notification.routes';
 import reportRoutes from './routes/report.routes';
 import feedbackRoutes from './routes/feedback.routes';
@@ -71,6 +72,7 @@ app.use(passport.initialize());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/meetings', momRoutes);
 app.use('/api/meetings', meetingRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/reports', reportRoutes);
