@@ -48,6 +48,7 @@ export interface IMeeting extends Document {
   status:       MeetingStatus;
   groupId?:     string;
   recurrencePattern?: string;
+  offlineReportFileUrl?: string;
   createdAt:    Date;
   updatedAt:    Date;
 }
@@ -124,6 +125,10 @@ const MeetingSchema = new Schema<IMeeting>(
       type: String,
       enum: ['None', 'Daily', 'Weekly', 'Bi-Weekly', 'Monthly'],
       default: 'None'
+    },
+    offlineReportFileUrl: {
+      type: String,
+      default: null
     }
   },
   { 

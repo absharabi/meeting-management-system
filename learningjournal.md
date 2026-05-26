@@ -84,5 +84,18 @@ GitHub has a built-in AI called **Secret Scanning**. It scanned our commit as we
 1. We used `git reset HEAD~1` to undo our broken commit.
 2. We used `git rm --cached .env` to surgically remove the file from Git's memory.
 3. We fixed a file-encoding glitch in our `.gitignore` file, added `.env` to it, and pushed safely! 
-
 *Always double-check your `git status` before committing to ensure `.env` isn't listed!*
+
+---
+
+## 🔔 Stage 6: Advanced Notifications & Profile Management
+
+**What we built:**
+We implemented a robust, real-time notification engine with meeting reminders, alongside a fully integrated user profile management interface in the Settings page. We also significantly upgraded the user experience by replacing native browser popups with beautiful, custom-styled toast notifications and synthesized audio.
+
+**How it works (The Code):**
+*   **Real-Time Web Sockets (`Socket.io`):** We built a bidirectional communication channel between the client and server. When a user connects to the app, we emit a `register` event to map their live connection to their database `userId`. When a meeting is created, updated, or cancelled, the backend instantly pushes a `new_notification` payload specifically to the connected participants, allowing the UI to update instantly without the user having to refresh the page.
+*   **Cron Jobs for Automated Reminders:** We used `node-cron` to schedule an automated background task that runs every single minute on the server. It queries MongoDB for meetings starting exactly 60 minutes or 10 minutes from the current time. When it finds matches, it dispatches automated socket notifications. We utilized `Math.round()` for precise time-difference calculations to ensure millisecond discrepancies in the `Date` objects wouldn't cause missed reminders.
+*   **Web Audio API Synthesizer:** To provide premium audio feedback without relying on messy, external MP3 files, we used the browser's native `AudioContext`. We coded a custom synthesizer layering `sine` and `triangle` oscillators, manipulated the volume envelopes (sharp attack, slow exponential decay), and successfully replicated the rich, glass-like harmonic strike of a premium smartphone notification!
+*   **Elegant UI Toasts (`react-hot-toast`):** We scoured the codebase and eradicated ugly, thread-blocking native browser `window.alert()` dialogs. We replaced them with non-blocking, beautifully styled Toast notifications. We implemented conditional logic to dynamically render different animated icons (Green Checkmarks, Red Xs, Sparkles) and custom CSS borders based on the specific `notification.type` sent from the backend.
+*   **Profile Management & Settings:** We structured a dynamic Tabbed layout in React to cleanly separate the "Edit Profile" and "Notifications" sections. On the backend, we created a specialized `PUT /api/users/me` endpoint. This allows users to securely update their specific biographical fields (`name`, `department`) without risking the exposure or modification of sensitive data like their email, password, or administrative role.

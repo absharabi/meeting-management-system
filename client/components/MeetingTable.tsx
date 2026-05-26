@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MoreHorizontal, Edit, Trash2, ExternalLink } from 'lucide-react';
+import { MoreHorizontal, Edit, Trash2, ExternalLink, X } from 'lucide-react';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
@@ -18,6 +18,7 @@ interface Meeting {
   status: string;
   participants: User[];
   organizerId?: any;
+  attendance?: any[];
 }
 interface MeetingTableProps {
   searchQuery?: string;
@@ -33,6 +34,11 @@ export default function MeetingTable({
   const [dateFilter, setDateFilter] = useState('All');
   const [isLoading, setIsLoading] = useState(true);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  
+  // Attendance Modal State
+  const [attendanceModalMeeting, setAttendanceModalMeeting] = useState<Meeting | null>(null);
+  const [attendedIds, setAttendedIds] = useState<Set<string>>(new Set());
+  const [isSubmittingAttendance, setIsSubmittingAttendance] = useState(false);
 
   const fetchMeetings = async () => {
     try {
@@ -96,9 +102,51 @@ export default function MeetingTable({
   const filteredMeetings = meetings.filter(meeting => {
     const matchesSearch = meeting.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'All' || meeting.status === statusFilter;
-    // Basic date filtering logic could be added here
     return matchesSearch && matchesStatus;
   });
+
+  const openAttendanceModal = (meeting: Meeting) => {
+    setAttendanceModalMeeting(meeting);
+    setOpenDropdownId(null);
+    if (meeting.attendance) {
+      setAttendedIds(new Set(meeting.attendance.map(a => typeof a === 'string' ? a : a._id)));
+    } else {
+      setAttendedIds(new Set());
+    }
+  };
+
+  const toggleAttendance = (userId: string) => {
+    setAttendedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(userId)) newSet.delete(userId);
+      else newSet.add(userId);
+      return newSet;
+    });
+  };
+
+  const submitAttendance = async () => {
+    if (!attendanceModalMeeting) return;
+    setIsSubmittingAttendance(true);
+    try {
+      const res = await fetch(`http://localhost:5000/api/meetings/${attendanceModalMeeting._id}/attendance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attendanceList: Array.from(attendedIds) })
+      });
+      if (res.ok) {
+        toast.success('Attendance marked successfully!');
+        fetchMeetings();
+        setAttendanceModalMeeting(null);
+      } else {
+        const err = await res.json();
+        toast.error(err.message || 'Failed to mark attendance');
+      }
+    } catch (error) {
+      toast.error('An error occurred');
+    } finally {
+      setIsSubmittingAttendance(false);
+    }
+  };
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
@@ -258,7 +306,7 @@ export default function MeetingTable({
                           {currentUser && (meeting.organizerId?._id === currentUser.id || meeting.organizerId?._id === currentUser._id || currentUser.role === 'SuperAdmin' || currentUser.role === 'Admin') && (
                             <>
                               <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                              <button onClick={() => alert('Mark Attendance coming soon')} className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 w-full text-left">
+                              <button onClick={() => openAttendanceModal(meeting)} className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 w-full text-left">
                                 Mark Attendance
                               </button>
                               <Link 
@@ -295,6 +343,64 @@ export default function MeetingTable({
           </table>
         )}
       </div>
+
+      {/* Attendance Modal */}
+      {attendanceModalMeeting && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-md shadow-xl overflow-hidden border border-gray-200 dark:border-gray-800 flex flex-col max-h-[80vh]">
+            <div className="flex justify-between items-center p-6 border-b border-gray-100 dark:border-gray-800">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Mark Attendance</h3>
+              <button onClick={() => setAttendanceModalMeeting(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1">
+              <p className="text-sm text-gray-500 mb-4 font-medium uppercase tracking-wider">Participant List</p>
+              {(!attendanceModalMeeting.participants || attendanceModalMeeting.participants.length === 0) ? (
+                <p className="text-gray-500">No participants invited.</p>
+              ) : (
+                <div className="space-y-3">
+                  {attendanceModalMeeting.participants.map((p: any) => {
+                    const user = p.user;
+                    if (!user) return null;
+                    return (
+                      <label key={user._id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors">
+                        <input 
+                          type="checkbox" 
+                          checked={attendedIds.has(user._id)}
+                          onChange={() => toggleAttendance(user._id)}
+                          className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{user.name}</p>
+                          <p className="text-xs text-gray-500">{user.email}</p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 flex justify-end gap-3">
+              <button 
+                onClick={() => setAttendanceModalMeeting(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={submitAttendance}
+                disabled={isSubmittingAttendance}
+                className="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {isSubmittingAttendance ? 'Saving...' : 'Save Attendance'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
