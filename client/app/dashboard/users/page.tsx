@@ -1,21 +1,82 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Navbar from "@/components/Navbar";
 import Sidebar from "@/components/Sidebar";
 import BulkUploadModal from "@/components/users/BulkUploadModal";
 import FilterBar from "@/components/users/FilterBar";
-import UserModal from "@/components/users/UserModal";
+import UserModal, { UserFormValues } from "@/components/users/UserModal";
 import UserProfileDrawer from "@/components/users/UserProfileDrawer";
 import UserStatCard from "@/components/users/UserStatCard";
 import UserTable from "@/components/users/UserTable";
-import { departments, ManagedUser, roles, statuses, userStats, users as sampleUsers } from "@/data/usersData";
-import { Download, Plus, Trash2, Upload, UserCheck, UserCog, UserX, X } from "lucide-react";
+import { departments, ManagedUser, roles, statuses } from "@/data/usersData";
+import { Download, MailQuestion, Plus, Trash2, Upload, UserCheck, UserCog, UserX, Users, X } from "lucide-react";
+import * as XLSX from "xlsx";
 
 interface ToastState {
   message: string;
   type: "success" | "error";
 }
+
+interface BackendUser {
+  _id: string;
+  name: string;
+  username?: string;
+  email: string;
+  phone?: string;
+  employeeId?: string;
+  role: string;
+  department?: string;
+  isActive?: boolean;
+  permissions?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+const API_BASE = "http://localhost:5000/api/users";
+const avatarColors = [
+  "from-blue-600 to-cyan-500",
+  "from-indigo-600 to-blue-500",
+  "from-emerald-600 to-teal-500",
+  "from-amber-500 to-orange-500",
+  "from-rose-600 to-pink-500",
+];
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("accessToken");
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+};
+
+const mapUser = (user: BackendUser, index = 0): ManagedUser => ({
+  id: user._id,
+  fullName: user.name,
+  username: user.username || user.email.split("@")[0],
+  employeeId: user.employeeId || `USR-${user._id.slice(-6).toUpperCase()}`,
+  email: user.email,
+  phone: user.phone || "",
+  department: user.department || "Administration",
+  role: user.role,
+  status: user.isActive === false ? "Inactive" : "Active",
+  lastLogin: "Google sign-in",
+  avatarColor: avatarColors[index % avatarColors.length],
+  permissions: (user.permissions?.length ? user.permissions : ["Meetings"]) as ManagedUser["permissions"],
+  recentActivity: [`Created ${user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "in the system"}`],
+});
+
+const buildPayload = (values: UserFormValues) => ({
+  name: values.fullName.trim(),
+  username: values.username.trim(),
+  email: values.email.trim().toLowerCase(),
+  phone: values.phone.trim(),
+  employeeId: values.employeeId.trim(),
+  role: values.role,
+  department: values.department,
+  isActive: values.status === "Active",
+  permissions: values.permissions,
+});
 
 export default function UsersPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -27,16 +88,35 @@ export default function UsersPage() {
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [isLoading, setIsLoading] = useState(true);
+  const [users, setUsers] = useState<ManagedUser[]>([]);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
   const [drawerUser, setDrawerUser] = useState<ManagedUser | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 650);
-    return () => window.clearTimeout(timer);
+  const notify = useCallback((message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
   }, []);
+
+  const loadUsers = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(API_BASE, { headers: getAuthHeaders() });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Unable to load users.");
+      setUsers(data.map((user: BackendUser, index: number) => mapUser(user, index)));
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unable to load users.", "error");
+      setUsers([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [notify]);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
   useEffect(() => {
     if (!toast) return;
@@ -45,7 +125,7 @@ export default function UsersPage() {
   }, [toast]);
 
   const filteredUsers = useMemo(() => {
-    return sampleUsers.filter((user) => {
+    return users.filter((user) => {
       const query = searchQuery.toLowerCase();
       const matchesSearch =
         user.fullName.toLowerCase().includes(query) ||
@@ -56,10 +136,106 @@ export default function UsersPage() {
       const matchesStatus = status === "All Statuses" || user.status === status;
       return matchesSearch && matchesDepartment && matchesRole && matchesStatus;
     });
-  }, [department, role, searchQuery, status]);
+  }, [department, role, searchQuery, status, users]);
 
-  const notify = (message: string, type: "success" | "error" = "success") => {
-    setToast({ message, type });
+  const dynamicStats = useMemo(() => [
+    {
+      title: "Total Users",
+      value: users.length,
+      description: "Created accounts in MongoDB",
+      icon: Users,
+      color: "blue",
+    },
+    {
+      title: "Active Users",
+      value: users.filter((user) => user.status === "Active").length,
+      description: "Currently enabled accounts",
+      icon: UserCheck,
+      color: "green",
+    },
+    {
+      title: "Inactive Users",
+      value: users.filter((user) => user.status === "Inactive").length,
+      description: "Access temporarily disabled",
+      icon: UserX,
+      color: "red",
+    },
+    {
+      title: "Pending Invitations",
+      value: users.filter((user) => user.status === "Pending").length,
+      description: "Awaiting first login",
+      icon: MailQuestion,
+      color: "amber",
+    },
+  ], [users]);
+
+  const saveUser = async (values: UserFormValues) => {
+    const isEditing = Boolean(editingUser);
+    const url = isEditing ? `${API_BASE}/${editingUser?.id}` : API_BASE;
+    const response = await fetch(url, {
+      method: isEditing ? "PUT" : "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(buildPayload(values)),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      notify(data.message || "Unable to save user.", "error");
+      return;
+    }
+
+    const mapped = mapUser(data, users.length);
+    setUsers((current) => (
+      isEditing
+        ? current.map((user) => (user.id === mapped.id ? mapped : user))
+        : [mapped, ...current]
+    ));
+    setIsUserModalOpen(false);
+    setEditingUser(null);
+    notify(isEditing ? `${mapped.fullName} updated successfully.` : `${mapped.fullName} created successfully.`);
+  };
+
+  const completeBulkUpload = (message: string, type: "success" | "error" = "success") => {
+    notify(message, type);
+    if (type === "success" && message.startsWith("Bulk upload complete")) loadUsers();
+  };
+
+  const exportUsers = () => {
+    const exportRows = filteredUsers.map((user) => ({
+      Name: user.fullName,
+      Email: user.email,
+      Role: user.role,
+      Username: user.username,
+      Phone: user.phone,
+      "Employee ID": user.employeeId,
+      Department: user.department,
+      Status: user.status,
+      Permissions: user.permissions.join(", "),
+      "Last Login": user.lastLogin,
+    }));
+
+    if (exportRows.length === 0) {
+      notify("No users available to export.", "error");
+      return;
+    }
+
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    worksheet["!cols"] = [
+      { wch: 24 },
+      { wch: 30 },
+      { wch: 16 },
+      { wch: 18 },
+      { wch: 16 },
+      { wch: 18 },
+      { wch: 24 },
+      { wch: 14 },
+      { wch: 42 },
+      { wch: 18 },
+    ];
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Users");
+    XLSX.writeFile(workbook, `users-export-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    notify(`Exported ${exportRows.length} user${exportRows.length === 1 ? "" : "s"}.`);
   };
 
   const resetFilters = () => {
@@ -95,7 +271,23 @@ export default function UsersPage() {
 
   const confirmDelete = (user: ManagedUser) => {
     if (window.confirm(`Delete ${user.fullName}? This action cannot be undone.`)) {
-      notify(`${user.fullName} marked for deletion.`, "error");
+      deleteUser(user);
+    }
+  };
+
+  const deleteUser = async (user: ManagedUser) => {
+    try {
+      const response = await fetch(`${API_BASE}/${user.id}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Unable to delete user.");
+      setUsers((current) => current.filter((item) => item.id !== user.id));
+      setSelectedIds((current) => current.filter((id) => id !== user.id));
+      notify(`${user.fullName} deleted.`, "error");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unable to delete user.", "error");
     }
   };
 
@@ -123,7 +315,7 @@ export default function UsersPage() {
                 <div className="flex flex-wrap gap-3">
                   <HeaderButton icon={Plus} label="Add User" onClick={openAddUser} primary />
                   <HeaderButton icon={Upload} label="Bulk Upload" onClick={() => setIsBulkUploadOpen(true)} />
-                  <HeaderButton icon={Download} label="Export Users" onClick={() => notify("User export started.")} />
+                  <HeaderButton icon={Download} label="Export Users" onClick={exportUsers} />
                 </div>
               </div>
             </header>
@@ -156,7 +348,7 @@ export default function UsersPage() {
             />
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {userStats.map((stat) => (
+              {dynamicStats.map((stat) => (
                 <UserStatCard key={stat.title} {...stat} />
               ))}
             </div>
@@ -184,8 +376,8 @@ export default function UsersPage() {
       </div>
 
       <BulkActionBar selectedCount={selectedIds.length} onClear={() => setSelectedIds([])} onAction={runBulkAction} />
-      <UserModal isOpen={isUserModalOpen} user={editingUser} onClose={() => setIsUserModalOpen(false)} onSave={notify} />
-      <BulkUploadModal isOpen={isBulkUploadOpen} onClose={() => setIsBulkUploadOpen(false)} onComplete={notify} />
+      <UserModal isOpen={isUserModalOpen} user={editingUser} onClose={() => setIsUserModalOpen(false)} onSave={saveUser} />
+      <BulkUploadModal isOpen={isBulkUploadOpen} onClose={() => setIsBulkUploadOpen(false)} onComplete={completeBulkUpload} />
       <UserProfileDrawer user={drawerUser} onClose={() => setDrawerUser(null)} onEdit={openEditUser} />
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>

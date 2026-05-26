@@ -26,7 +26,7 @@ router.put('/preferences', updatePreferences);
 router.put('/mute-meeting/:meetingId', toggleMuteMeeting);
 
 // Protect all user management routes (Admins only)
-router.use(authorize(Role.SuperAdmin, Role.Admin));
+router.use(protect, authorize(Role.SuperAdmin, Role.Admin));
 
 router.get('/', getUsers);
 router.post('/', addUser);

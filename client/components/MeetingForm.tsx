@@ -14,6 +14,12 @@ interface MeetingFormProps {
   mode?: 'create' | 'edit';
 }
 
+interface AvailableUser {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export default function MeetingForm({ initialData, mode = 'create' }: MeetingFormProps) {
   const router = useRouter();
 
@@ -58,12 +64,31 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
     }
   }, [initialData]);
 
-  const [availableUsers] = useState([
-    { id: '65f0a1b2c3d4e5f607890ab1', name: 'Alice Smith', email: 'alice@example.com' },
-    { id: '65f0a1b2c3d4e5f607890ab2', name: 'Bob Johnson', email: 'bob@example.com' },
-    { id: '65f0a1b2c3d4e5f607890ab3', name: 'Charlie Brown', email: 'charlie@example.com' },
-    { id: '65f0a1b2c3d4e5f607890ab4', name: 'Diana Prince', email: 'diana@example.com' },
-  ]);
+  const [availableUsers, setAvailableUsers] = useState<AvailableUser[]>([]);
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const token = localStorage.getItem('accessToken');
+        const res = await fetch('http://localhost:5000/api/users', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+
+        if (!res.ok) return;
+
+        const users = await res.json();
+        setAvailableUsers(users.map((user: any) => ({
+          id: user._id,
+          name: user.name,
+          email: user.email,
+        })));
+      } catch {
+        setAvailableUsers([]);
+      }
+    };
+
+    loadUsers();
+  }, []);
 
   const toggleParticipant = (userId: string) => {
     setFormData(prev => ({
@@ -340,6 +365,11 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-1"><Users size={14} /> Select Participants</label>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {availableUsers.length === 0 && (
+                <p className="col-span-full rounded-xl border border-dashed border-gray-300 p-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                  No users available to invite.
+                </p>
+              )}
               {availableUsers.map(user => {
                 const isSelected = formData.participants.includes(user.id);
                 return (

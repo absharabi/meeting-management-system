@@ -9,24 +9,42 @@ import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import meetingRoutes from './routes/meeting.routes';
 import notificationRoutes from './routes/notification.routes';
-import User, { Role } from './models/User';
+import User from './models/User';
 import { initReminderService } from './services/reminderService';
 import { initSocketService } from './services/socketService';
 import './config/passport';
 
 connectDB().then(async () => {
-  // Ensure dummy user exists for dev
   const dummyId = '65f0a1b2c3d4e5f607890abc';
-  const exists = await User.findById(dummyId);
-  if (!exists) {
-    await User.create({
-      _id: dummyId,
-      name: 'SuperAdmin Dev',
-      email: 'admin@dev.com',
-      role: Role.SuperAdmin,
-      googleId: 'dummy'
-    });
-    console.log('Seeded dummy user');
+  const dummyResult = await User.deleteOne({
+    _id: dummyId,
+    email: 'admin@dev.com',
+    googleId: 'dummy',
+  });
+
+  if (dummyResult.deletedCount > 0) {
+    console.log('Removed legacy dummy SuperAdmin user');
+  }
+
+  const exampleResult = await User.deleteMany({
+    $or: [
+      { _id: { $in: [
+        '65f0a1b2c3d4e5f607890ab1',
+        '65f0a1b2c3d4e5f607890ab2',
+        '65f0a1b2c3d4e5f607890ab3',
+        '65f0a1b2c3d4e5f607890ab4',
+      ] } },
+      { email: { $in: [
+        'alice@example.com',
+        'bob@example.com',
+        'charlie@example.com',
+        'diana@example.com',
+      ] } },
+    ],
+  });
+
+  if (exampleResult.deletedCount > 0) {
+    console.log(`Removed ${exampleResult.deletedCount} legacy example users`);
   }
 });
 initReminderService();

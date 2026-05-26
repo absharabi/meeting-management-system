@@ -52,12 +52,9 @@ export const departments = [
 
 export const roles = [
   "All Roles",
-  "SuperAdmin",
   "Admin",
-  "Organizer",
-  "Faculty",
-  "Participant",
-  "Auditor",
+  "User",
+  "Reviewer",
 ];
 
 export const statuses = ["All Statuses", "Active", "Inactive", "Pending"];

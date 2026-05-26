@@ -8,7 +8,6 @@ import {
   Eye,
   MoreHorizontal,
   Power,
-  RotateCcw,
   Trash2,
   UserX,
 } from "lucide-react";
@@ -148,7 +147,6 @@ export default function UserTable({
                         <MenuButton icon={Eye} label="View" onClick={() => { setOpenMenu(null); onView(user); }} />
                         <MenuButton icon={Edit3} label="Edit" onClick={() => { setOpenMenu(null); onEdit(user); }} />
                         <MenuButton icon={Power} label={user.status === "Active" ? "Deactivate" : "Activate"} onClick={() => { setOpenMenu(null); onNotify(`${user.fullName} status queued for update.`); }} />
-                        <MenuButton icon={RotateCcw} label="Reset Password" onClick={() => { setOpenMenu(null); onNotify(`Password reset link sent to ${user.email}.`); }} />
                         <MenuButton danger icon={Trash2} label="Delete" onClick={() => { setOpenMenu(null); onDelete(user); }} />
                       </div>
                     )}

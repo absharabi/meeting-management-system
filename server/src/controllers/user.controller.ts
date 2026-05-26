@@ -2,6 +2,37 @@ import { Request, Response } from 'express';
 import * as XLSX from 'xlsx';
 import User, { Role } from '../models/User';
 
+const allowedPermissions = ['Meetings', 'Reports', 'User Management', 'Audit Logs', 'Settings'];
+
+const getCellValue = (row: Record<string, any>, keys: string[]): string => {
+  const entry = Object.entries(row).find(([key]) => keys.includes(key.toLowerCase().replace(/\s+/g, '')));
+  return entry?.[1]?.toString().trim() || '';
+};
+
+const parseStatus = (value: string): boolean => {
+  const normalized = value.toLowerCase();
+  return !['inactive', 'disabled', 'false', 'no', '0'].includes(normalized);
+};
+
+const parseRole = (value: string): Role | null => {
+  const role = Object.values(Role).find((item) => item.toLowerCase() === value.toLowerCase());
+  return role || null;
+};
+
+const isValidEmail = (value: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+const parsePermissions = (value: string): string[] => {
+  if (!value) return ['Meetings'];
+
+  const permissions = value
+    .split(',')
+    .map((permission) => permission.trim())
+    .map((permission) => allowedPermissions.find((allowed) => allowed.toLowerCase() === permission.toLowerCase()))
+    .filter((permission): permission is string => Boolean(permission));
+
+  return permissions.length ? permissions : ['Meetings'];
+};
+
 export const getUsers = async (req: Request, res: Response): Promise<void> => {
   try {
     const users = await User.find().select('-googleId').sort({ createdAt: -1 });
@@ -48,11 +79,10 @@ export const updateMyProfile = async (req: Request, res: Response): Promise<void
 
 export const addUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, email, role, department } = req.body;
-    const requestingUser = (req as any).user;
+    const { name, username, email, phone, employeeId, role, department, isActive, permissions } = req.body;
 
-    if (role === Role.SuperAdmin && requestingUser.role !== Role.SuperAdmin) {
-      res.status(403).json({ message: 'Only SuperAdmin can assign SuperAdmin role' });
+    if (role === Role.SuperAdmin) {
+      res.status(400).json({ message: 'SuperAdmin accounts cannot be created from user management' });
       return;
     }
 
@@ -62,7 +92,7 @@ export const addUser = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const user = await User.create({ name, email, role, department });
+    const user = await User.create({ name, username, email, phone, employeeId, role, department, isActive, permissions });
     res.status(201).json(user);
   } catch {
     res.status(500).json({ message: 'Server error' });
@@ -71,7 +101,7 @@ export const addUser = async (req: Request, res: Response): Promise<void> => {
 
 export const updateUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, role, department, isActive } = req.body;
+    const { name, username, phone, employeeId, role, department, isActive, permissions } = req.body;
     const requestingUser = (req as any).user;
 
     const target = await User.findById(req.params.id);
@@ -92,7 +122,7 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
 
     const updated = await User.findByIdAndUpdate(
       req.params.id,
-      { name, role, department, isActive },
+      { name, username, phone, employeeId, role, department, isActive, permissions },
       { new: true, runValidators: true }
     ).select('-googleId');
 
@@ -146,29 +176,63 @@ export const bulkAddUsers = async (req: Request, res: Response): Promise<void> =
     }
 
     const results = { added: 0, skipped: 0, errors: [] as string[] };
+    const seenEmails = new Set<string>();
 
     for (const row of rows) {
-      const email      = row.email?.toString().toLowerCase().trim();
-      const name       = row.name?.toString().trim();
-      const role       = row.role?.toString().trim();
-      const department = row.department?.toString().trim() || '';
+      const email = getCellValue(row, ['email', 'emailaddress']).toLowerCase();
+      const name = getCellValue(row, ['name', 'fullname']);
+      const roleValue = getCellValue(row, ['role']);
+      const role = parseRole(roleValue);
+      const username = getCellValue(row, ['username', 'user']);
+      const phone = getCellValue(row, ['phone', 'phonenumber', 'mobile']);
+      const employeeId = getCellValue(row, ['employeeid', 'employee', 'staffid', 'userid']);
+      const department = getCellValue(row, ['department', 'dept']);
+      const status = getCellValue(row, ['status', 'active', 'isactive']);
+      const permissions = parsePermissions(getCellValue(row, ['permissions', 'permission']));
 
-      if (!email || !name || !role) {
+      if (!email || !name || !roleValue) {
         results.errors.push(`Row skipped: ${JSON.stringify(row)}`);
         results.skipped++;
         continue;
       }
 
-      if (!Object.values(Role).includes(role as Role)) {
-        results.errors.push(`Invalid role "${role}" for ${email}`);
+      if (!role || role === Role.SuperAdmin) {
+        results.errors.push(`Invalid role "${roleValue}" for ${email}. Use Admin, User, or Reviewer.`);
         results.skipped++;
         continue;
       }
 
-      const exists = await User.findOne({ email });
-      if (exists) { results.skipped++; continue; }
+      if (!isValidEmail(email)) {
+        results.errors.push(`Invalid email address: ${email}`);
+        results.skipped++;
+        continue;
+      }
 
-      await User.create({ name, email, role, department });
+      if (seenEmails.has(email)) {
+        results.errors.push(`Duplicate email in file: ${email}`);
+        results.skipped++;
+        continue;
+      }
+      seenEmails.add(email);
+
+      const exists = await User.findOne({ email });
+      if (exists) {
+        results.errors.push(`User already exists: ${email}`);
+        results.skipped++;
+        continue;
+      }
+
+      await User.create({
+        name,
+        username,
+        email,
+        phone,
+        employeeId,
+        role,
+        department,
+        isActive: parseStatus(status),
+        permissions,
+      });
       results.added++;
     }
 

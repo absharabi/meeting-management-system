@@ -1,5 +1,5 @@
 import React from "react";
-import { Edit3, Eye, MoreHorizontal, Power, RotateCcw, Trash2 } from "lucide-react";
+import { Edit3, Eye, MoreHorizontal, Power, Trash2 } from "lucide-react";
 import { ManagedUser } from "@/data/usersData";
 import StatusBadge from "./StatusBadge";
 
@@ -72,7 +72,7 @@ export default function UserCard({
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-5 gap-2 border-t border-gray-100 pt-4 dark:border-gray-800">
+      <div className="mt-4 grid grid-cols-4 gap-2 border-t border-gray-100 pt-4 dark:border-gray-800">
         <button title="View" onClick={() => onView(user)} className="rounded-xl bg-blue-50 p-2 text-blue-600 transition-colors hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40">
           <Eye size={17} className="mx-auto" />
         </button>
@@ -81,9 +81,6 @@ export default function UserCard({
         </button>
         <button title="Activate or deactivate" onClick={() => onNotify(`${user.fullName} status queued for update.`)} className="rounded-xl bg-green-50 p-2 text-green-600 transition-colors hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40">
           <Power size={17} className="mx-auto" />
-        </button>
-        <button title="Reset password" onClick={() => onNotify(`Password reset link sent to ${user.email}.`)} className="rounded-xl bg-amber-50 p-2 text-amber-600 transition-colors hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40">
-          <RotateCcw size={17} className="mx-auto" />
         </button>
         <button title="Delete" onClick={() => onDelete(user)} className="rounded-xl bg-red-50 p-2 text-red-600 transition-colors hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40">
           <Trash2 size={17} className="mx-auto" />

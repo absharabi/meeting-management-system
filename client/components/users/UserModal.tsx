@@ -1,21 +1,33 @@
 "use client";
 
 import React, { FormEvent, useEffect, useMemo, useState } from "react";
-import { Camera, Check, EyeOff, ShieldCheck, X } from "lucide-react";
-import { departments, ManagedUser, permissionModules, roles, UserStatus } from "@/data/usersData";
+import { Camera, Check, ShieldCheck, X } from "lucide-react";
+import { departments, ManagedUser, PermissionModule, permissionModules, roles, UserStatus } from "@/data/usersData";
+
+export interface UserFormValues {
+  fullName: string;
+  username: string;
+  email: string;
+  phone: string;
+  employeeId: string;
+  department: string;
+  role: string;
+  status: UserStatus;
+  permissions: PermissionModule[];
+}
 
 interface UserModalProps {
   isOpen: boolean;
   user?: ManagedUser | null;
   onClose: () => void;
-  onSave: (message: string) => void;
+  onSave: (values: UserFormValues) => Promise<void> | void;
 }
 
 const inputClass =
   "h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900 outline-none transition-all placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:border-blue-400";
 
 const fieldDepartments = departments.filter((department) => department !== "All Departments");
-const fieldRoles = roles.filter((role) => role !== "All Roles");
+const fieldRoles = roles.filter((role) => role !== "All Roles" && role !== "SuperAdmin");
 
 export default function UserModal({ isOpen, user, onClose, onSave }: UserModalProps) {
   const [form, setForm] = useState({
@@ -25,13 +37,12 @@ export default function UserModal({ isOpen, user, onClose, onSave }: UserModalPr
     phone: "",
     employeeId: "",
     department: fieldDepartments[0],
-    role: "Participant",
-    password: "",
-    confirmPassword: "",
+    role: "User",
     status: "Active" as UserStatus,
-    permissions: [] as string[],
+    permissions: [] as PermissionModule[],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
 
   const title = user ? "Edit User" : "Add User";
 
@@ -46,8 +57,6 @@ export default function UserModal({ isOpen, user, onClose, onSave }: UserModalPr
         employeeId: user.employeeId,
         department: user.department,
         role: user.role,
-        password: "",
-        confirmPassword: "",
         status: user.status,
         permissions: user.permissions,
       });
@@ -59,19 +68,18 @@ export default function UserModal({ isOpen, user, onClose, onSave }: UserModalPr
         phone: "",
         employeeId: "",
         department: fieldDepartments[0],
-        role: "Participant",
-        password: "",
-        confirmPassword: "",
+        role: "User",
         status: "Active",
         permissions: ["Meetings"],
       });
     }
     setErrors({});
+    setIsSaving(false);
   }, [isOpen, user]);
 
   const canSubmit = useMemo(() => {
-    return form.fullName.trim() && form.email.includes("@") && form.employeeId.trim() && (user || form.password.length >= 8) && form.password === form.confirmPassword;
-  }, [form, user]);
+    return Boolean(form.fullName.trim() && form.email.includes("@") && form.employeeId.trim() && form.role);
+  }, [form]);
 
   if (!isOpen) return null;
 
@@ -79,7 +87,7 @@ export default function UserModal({ isOpen, user, onClose, onSave }: UserModalPr
     setForm((previous) => ({ ...previous, [key]: value }));
   };
 
-  const togglePermission = (module: string) => {
+  const togglePermission = (module: PermissionModule) => {
     update(
       "permissions",
       form.permissions.includes(module)
@@ -88,19 +96,21 @@ export default function UserModal({ isOpen, user, onClose, onSave }: UserModalPr
     );
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextErrors: Record<string, string> = {};
     if (!form.fullName.trim()) nextErrors.fullName = "Full name is required.";
     if (!form.email.includes("@")) nextErrors.email = "Enter a valid email address.";
     if (!form.employeeId.trim()) nextErrors.employeeId = "Employee ID is required.";
-    if (!user && form.password.length < 8) nextErrors.password = "Password must be at least 8 characters.";
-    if (form.password !== form.confirmPassword) nextErrors.confirmPassword = "Passwords do not match.";
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length === 0) {
-      onSave(user ? `${form.fullName} updated successfully.` : `${form.fullName} created successfully.`);
-      onClose();
+      setIsSaving(true);
+      try {
+        await onSave(form);
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 
@@ -110,7 +120,7 @@ export default function UserModal({ isOpen, user, onClose, onSave }: UserModalPr
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-800">
           <div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">{title}</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Create access, assign department roles, and configure permissions.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Create Google-authenticated users, assign department roles, and configure permissions.</p>
           </div>
           <button onClick={onClose} className="rounded-xl p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200" aria-label="Close modal">
             <X size={20} />
@@ -180,15 +190,6 @@ export default function UserModal({ isOpen, user, onClose, onSave }: UserModalPr
                     ))}
                   </select>
                 </Field>
-                <Field label="Password" error={errors.password}>
-                  <div className="relative">
-                    <input type="password" value={form.password} onChange={(event) => update("password", event.target.value)} className={`${inputClass} pr-10`} placeholder={user ? "Leave blank to keep current" : "Minimum 8 characters"} />
-                    <EyeOff className="absolute right-3 top-3 text-gray-400" size={17} />
-                  </div>
-                </Field>
-                <Field label="Confirm Password" error={errors.confirmPassword}>
-                  <input type="password" value={form.confirmPassword} onChange={(event) => update("confirmPassword", event.target.value)} className={inputClass} placeholder="Confirm password" />
-                </Field>
               </div>
 
               <section className="rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
@@ -231,8 +232,8 @@ export default function UserModal({ isOpen, user, onClose, onSave }: UserModalPr
             <button type="button" onClick={onClose} className="rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
               Cancel
             </button>
-            <button type="submit" disabled={!canSubmit} className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
-              Save User
+            <button type="submit" disabled={!canSubmit || isSaving} className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+              {isSaving ? "Saving..." : "Save User"}
             </button>
           </div>
         </form>
