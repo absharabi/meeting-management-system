@@ -25,16 +25,17 @@ interface MeetingTableProps {
   currentUser?: any;
 }
 
-export default function MeetingTable({ 
-  searchQuery = '', 
-  currentUser = null 
+export default function MeetingTable({
+  searchQuery = '',
+  currentUser = null
 }: MeetingTableProps) {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [statusFilter, setStatusFilter] = useState('All');
   const [dateFilter, setDateFilter] = useState('All');
   const [isLoading, setIsLoading] = useState(true);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
-  
+  const [activeTab, setActiveTab] = useState<'created' | 'invited' | 'all'>('created');
+
   // Attendance Modal State
   const [attendanceModalMeeting, setAttendanceModalMeeting] = useState<Meeting | null>(null);
   const [attendedIds, setAttendedIds] = useState<Set<string>>(new Set());
@@ -60,11 +61,15 @@ export default function MeetingTable({
 
   useEffect(() => {
     fetchMeetings();
-  }, []);
+    // Default to 'all' if admin, else 'created'
+    if (currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin') {
+      setActiveTab('all');
+    }
+  }, [currentUser]);
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this meeting?')) return;
-    
+
     try {
       const token = localStorage.getItem('accessToken');
       const res = await fetch(`http://localhost:5000/api/meetings/${id}`, {
@@ -88,7 +93,7 @@ export default function MeetingTable({
       const token = localStorage.getItem('accessToken');
       const res = await fetch(`http://localhost:5000/api/meetings/${id}/rsvp`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
@@ -112,6 +117,22 @@ export default function MeetingTable({
     const matchesSearch = meeting.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'All' || meeting.status === statusFilter;
     return matchesSearch && matchesStatus;
+  });
+
+  const displayedMeetings = filteredMeetings.filter(meeting => {
+    if (!currentUser) return true;
+    if (activeTab === 'all') return true;
+
+    // Check both object structure (if populated) and raw string/objectId
+    const isOrganizer = meeting.organizerId?._id === currentUser.id || meeting.organizerId === currentUser.id;
+    const isParticipant = meeting.participants?.some(
+      (p: any) => p.user?._id === currentUser.id || p.user === currentUser.id
+    );
+
+    if (activeTab === 'created') return isOrganizer;
+    if (activeTab === 'invited') return isParticipant && !isOrganizer;
+
+    return true;
   });
 
   const openAttendanceModal = (meeting: Meeting) => {
@@ -140,7 +161,7 @@ export default function MeetingTable({
       const token = localStorage.getItem('accessToken');
       const res = await fetch(`http://localhost:5000/api/meetings/${attendanceModalMeeting._id}/attendance`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
@@ -164,12 +185,37 @@ export default function MeetingTable({
   return (
     <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
       <div className="p-6 border-b border-gray-100 dark:border-gray-800">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Recent & Upcoming Meetings</h2>
-          
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full xl:w-auto">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mr-2">Meetings</h2>
+
+            <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
+              <button
+                onClick={() => setActiveTab('created')}
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === 'created' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+              >
+                Organized Meetings
+              </button>
+              <button
+                onClick={() => setActiveTab('invited')}
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === 'invited' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+              >
+                Attended Meetings
+              </button>
+              {(currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin') && (
+                <button
+                  onClick={() => setActiveTab('all')}
+                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === 'all' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+                >
+                  All Meetings
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Advanced Search Filters */}
           <div className="flex flex-wrap items-center gap-3">
-            <select 
+            <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-blue-500 transition-colors"
@@ -180,7 +226,7 @@ export default function MeetingTable({
               <option value="Completed">Completed</option>
               <option value="Cancelled">Cancelled</option>
             </select>
-            <select 
+            <select
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
               className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-blue-500 transition-colors"
@@ -198,7 +244,7 @@ export default function MeetingTable({
                 <option value="Marketing">Marketing</option>
               </select>
             )}
-            <button 
+            <button
               onClick={fetchMeetings}
               className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 px-4 py-2 border border-blue-200 dark:border-blue-900/50 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all"
             >
@@ -207,15 +253,15 @@ export default function MeetingTable({
           </div>
         </div>
       </div>
-      
+
       <div className="overflow-x-auto min-h-[300px]">
         {isLoading ? (
           <div className="flex items-center justify-center h-48">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
-        ) : filteredMeetings.length === 0 ? (
+        ) : displayedMeetings.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-gray-500 dark:text-gray-400">
-            <p>No meetings found.</p>
+            <p>No {activeTab === 'created' ? 'created' : activeTab === 'invited' ? 'invited' : ''} meetings found.</p>
           </div>
         ) : (
           <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
@@ -229,7 +275,7 @@ export default function MeetingTable({
               </tr>
             </thead>
             <tbody>
-              {filteredMeetings.map((meeting) => (
+              {displayedMeetings.map((meeting) => (
                 <tr key={meeting._id} className="bg-white dark:bg-gray-800 border-b border-gray-50 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
                   <td className="px-6 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap">
                     {meeting.title}
@@ -260,12 +306,11 @@ export default function MeetingTable({
                   </td>
                   <td className="px-6 py-4">
                     {/* Dynamic Animated Status Badges */}
-                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm border ${
-                      meeting.status === 'Completed' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400' : 
-                      meeting.status === 'Ongoing' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400' :
-                      meeting.status === 'Cancelled' ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400' :
-                      'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-400'
-                    }`}>
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm border ${meeting.status === 'Completed' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400' :
+                        meeting.status === 'Ongoing' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400' :
+                          meeting.status === 'Cancelled' ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400' :
+                            'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-400'
+                      }`}>
                       {meeting.status === 'Ongoing' && (
                         <span className="relative flex h-2 w-2">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
@@ -279,18 +324,18 @@ export default function MeetingTable({
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right relative">
-                    <button 
+                    <button
                       onClick={() => setOpenDropdownId(openDropdownId === meeting._id ? null : meeting._id)}
                       className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
                       <MoreHorizontal size={18} />
                     </button>
-                    
+
                     {/* Dropdown Menu */}
                     {openDropdownId === meeting._id && (
                       <div className="absolute right-6 mt-1 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 z-50 overflow-hidden">
                         <div className="py-1">
-                          <Link 
+                          <Link
                             href={`/meetings/${meeting._id}`}
                             className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 w-full text-left"
                             onClick={() => setOpenDropdownId(null)}
@@ -301,13 +346,13 @@ export default function MeetingTable({
                           {currentUser && meeting.participants?.some((p: any) => p.user?._id === currentUser.id || p.user?._id === currentUser._id) && (
                             <>
                               <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                              <button 
+                              <button
                                 onClick={() => handleRSVP(meeting._id, 'Accepted')}
                                 className="flex items-center gap-2 px-4 py-2 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 w-full text-left"
                               >
                                 Accept Invitation
                               </button>
-                              <button 
+                              <button
                                 onClick={() => handleRSVP(meeting._id, 'Declined')}
                                 className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left"
                               >
@@ -322,7 +367,7 @@ export default function MeetingTable({
                               <button onClick={() => openAttendanceModal(meeting)} className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 w-full text-left">
                                 Mark Attendance
                               </button>
-                              <Link 
+                              <Link
                                 href={`/meetings/${meeting._id}`}
                                 className="flex items-center gap-2 px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 w-full text-left"
                                 onClick={() => setOpenDropdownId(null)}
@@ -338,14 +383,14 @@ export default function MeetingTable({
                               </Link>
                               
                               <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                              <Link 
+                              <Link
                                 href={`/meetings/${meeting._id}/edit`}
                                 className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 w-full text-left"
                                 onClick={() => setOpenDropdownId(null)}
                               >
                                 <Edit size={14} /> Edit
                               </Link>
-                              <button 
+                              <button
                                 onClick={() => { setOpenDropdownId(null); handleDelete(meeting._id); }}
                                 className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left"
                               >
@@ -374,7 +419,7 @@ export default function MeetingTable({
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="p-6 overflow-y-auto flex-1">
               <p className="text-sm text-gray-500 mb-4 font-medium uppercase tracking-wider">Participant List</p>
               {(!attendanceModalMeeting.participants || attendanceModalMeeting.participants.length === 0) ? (
@@ -386,8 +431,8 @@ export default function MeetingTable({
                     if (!user) return null;
                     return (
                       <label key={user._id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors">
-                        <input 
-                          type="checkbox" 
+                        <input
+                          type="checkbox"
                           checked={attendedIds.has(user._id)}
                           onChange={() => toggleAttendance(user._id)}
                           className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -404,13 +449,13 @@ export default function MeetingTable({
             </div>
 
             <div className="p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 flex justify-end gap-3">
-              <button 
+              <button
                 onClick={() => setAttendanceModalMeeting(null)}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={submitAttendance}
                 disabled={isSubmittingAttendance}
                 className="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"

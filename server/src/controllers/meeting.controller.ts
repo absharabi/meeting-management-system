@@ -164,6 +164,7 @@ export const createMeeting = async (req: Request, res: Response): Promise<void> 
 export const getMeetings = async (req: Request, res: Response): Promise<void> => {
   try {
     const { keyword, status, date, venue } = req.query;
+    const requestingUser = (req as any).user;
     
     // Build an advanced search query object
     let query: any = {};
@@ -184,6 +185,24 @@ export const getMeetings = async (req: Request, res: Response): Promise<void> =>
 
     // Venue Filter
     if (venue) query.venue = venue;
+
+    // Enforce data privacy for non-admins
+    if (!isGlobalAdmin(requestingUser.role)) {
+      const accessFilter = {
+        $or: [
+          { organizerId: requestingUser.id },
+          { 'participants.user': requestingUser.id }
+        ]
+      };
+      
+      if (query.$or) {
+        // If there's already an $or (from keyword search), wrap both in $and
+        query = { $and: [{ $or: query.$or }, accessFilter] };
+        delete query.$or; // Remove the old $or
+      } else {
+        query.$or = accessFilter.$or;
+      }
+    }
 
     const meetings = await Meeting.find(query)
       .populate('organizerId', 'name email')
