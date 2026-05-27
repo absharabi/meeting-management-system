@@ -115,7 +115,18 @@ export default function ActionItemsPage() {
     if (!over) return;
 
     const itemId = active.id as string;
-    const newStatus = over.id as 'To Do' | 'In Progress' | 'Done';
+    let newStatus = over.id as 'To Do' | 'In Progress' | 'Done';
+
+    // If the item was dropped over another item rather than the column itself,
+    // we need to look up the status of the item it was dropped over.
+    if (!['To Do', 'In Progress', 'Done'].includes(newStatus)) {
+      const overItem = items.find(i => i._id === over.id);
+      if (overItem) {
+        newStatus = overItem.status;
+      } else {
+        return;
+      }
+    }
 
     const item = items.find(i => i._id === itemId);
     if (item && item.status !== newStatus) {

@@ -44,7 +44,7 @@ export const getUsers = async (req: Request, res: Response): Promise<void> => {
 
 export const getMe = async (req: Request, res: Response): Promise<void> => {
   try {
-    const requestingUser = (req as any).user || { id: '65f0a1b2c3d4e5f607890abc' };
+    const requestingUser = (req as any).user;
     const user = await User.findById(requestingUser.id).select('-googleId');
     if (!user) {
       res.status(404).json({ message: 'User not found' });
@@ -58,7 +58,7 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
 
 export const updateMyProfile = async (req: Request, res: Response): Promise<void> => {
   try {
-    const requestingUser = (req as any).user || { id: '65f0a1b2c3d4e5f607890abc' };
+    const requestingUser = (req as any).user;
     const { name, department } = req.body;
     
     const user = await User.findByIdAndUpdate(
@@ -247,7 +247,7 @@ export const bulkAddUsers = async (req: Request, res: Response): Promise<void> =
 
 export const updatePreferences = async (req: Request, res: Response): Promise<void> => {
   try {
-    const requestingUser = (req as any).user || { id: '65f0a1b2c3d4e5f607890abc' };
+    const requestingUser = (req as any).user;
     const { notificationPreferences } = req.body;
 
     const updated = await User.findByIdAndUpdate(
@@ -264,7 +264,7 @@ export const updatePreferences = async (req: Request, res: Response): Promise<vo
 
 export const toggleMuteMeeting = async (req: Request, res: Response): Promise<void> => {
   try {
-    const requestingUser = (req as any).user || { id: '65f0a1b2c3d4e5f607890abc' };
+    const requestingUser = (req as any).user;
     const meetingId = req.params.meetingId;
 
     const user = await User.findById(requestingUser.id);

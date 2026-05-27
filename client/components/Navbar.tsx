@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { UserCircle, Search, Menu, Sun, Moon } from 'lucide-react';
+import { UserCircle, Search, Menu, Sun, Moon, Shield, Star } from 'lucide-react';
 import NotificationDropdown from './NotificationDropdown';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
@@ -16,9 +16,24 @@ export default function Navbar({ onMenuClick, searchQuery = '', onSearchChange }
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
     setMounted(true);
+    const loadUser = () => {
+      try {
+        const stored = localStorage.getItem('user');
+        if (stored) {
+          setCurrentUser(JSON.parse(stored));
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    
+    loadUser();
+    window.addEventListener('auth-change', loadUser);
+    return () => window.removeEventListener('auth-change', loadUser);
   }, []);
 
   return (
@@ -59,24 +74,56 @@ export default function Navbar({ onMenuClick, searchQuery = '', onSearchChange }
         <NotificationDropdown />
 
         {/* Profile Dropdown */}
-        <div className="relative">
-          <button 
-            onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="p-1 rounded-full hover:bg-blue-800 dark:hover:bg-gray-800 transition-colors"
-          >
-            <UserCircle size={28} />
-          </button>
-          
-          {showProfileMenu && (
-            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden text-gray-800 dark:text-gray-200">
-              <div className="py-1">
-                <Link href="/settings" className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">Profile</Link>
-                <Link href="/settings" className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">Settings</Link>
-                <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                <button className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">Logout</button>
-              </div>
+        <div className="relative flex items-center gap-3">
+          {currentUser && (
+            <div className="hidden md:flex flex-col items-end mr-1">
+              <span className="text-sm font-bold text-white tracking-wide">{currentUser.name || 'User'}</span>
+              <span className="text-xs text-blue-200 dark:text-gray-400 font-mono">{currentUser.email}</span>
             </div>
           )}
+          <div className="relative">
+            <button 
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              className="p-1 rounded-full hover:bg-blue-800 dark:hover:bg-gray-800 transition-colors flex items-center justify-center"
+            >
+            {currentUser ? (
+              <div className="relative">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-sm font-bold text-white shadow-sm border border-white/20" title={currentUser.email}>
+                  {currentUser.email ? currentUser.email.charAt(0).toUpperCase() : 'U'}
+                </div>
+                
+                {/* Role Badges */}
+                {currentUser.role === 'SuperAdmin' && (
+                  <div className="absolute -bottom-1 -right-1 bg-amber-500 rounded-full p-0.5 border-2 border-blue-900 dark:border-gray-950 shadow-sm" title="Super Admin">
+                    <Shield size={10} className="text-white" />
+                  </div>
+                )}
+                {currentUser.role === 'Admin' && (
+                  <div className="absolute -bottom-1 -right-1 bg-emerald-500 rounded-full p-0.5 border-2 border-blue-900 dark:border-gray-950 shadow-sm" title="Admin">
+                    <Star size={10} className="text-white" />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <UserCircle size={28} />
+            )}
+          </button>
+          
+            {showProfileMenu && (
+              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden text-gray-800 dark:text-gray-200">
+                <div className="py-1">
+                  <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 mb-1 md:hidden">
+                    <p className="text-sm font-bold truncate">{currentUser?.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{currentUser?.email}</p>
+                  </div>
+                  <Link href="/settings" className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">Profile</Link>
+                  <Link href="/settings" className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">Settings</Link>
+                  <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                  <button className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">Logout</button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

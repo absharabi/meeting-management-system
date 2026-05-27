@@ -6,8 +6,11 @@ import {
   deleteNotification,
   clearAllNotifications
 } from '../controllers/notification.controller';
+import { protect } from '../middleware/auth.middleware';
 
 const router = express.Router();
+
+router.use(protect);
 
 router.get('/', getUserNotifications);
 router.put('/read-all', markAllAsRead);

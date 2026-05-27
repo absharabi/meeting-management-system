@@ -10,8 +10,18 @@ export default function MeetingsPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Dummy current user (Auth is bypassed for dev)
-  const currentUser = { id: '65f0a1b2c3d4e5f607890abc', role: 'SuperAdmin' };
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  React.useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        setCurrentUser(JSON.parse(storedUser));
+      }
+    } catch (e) {
+      console.error('Failed to parse user', e);
+    }
+  }, []);
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-950 overflow-hidden font-sans transition-colors">

@@ -3,7 +3,7 @@ import Notification from '../models/Notification';
 
 // Temporary dummy user fallback for bypass
 const getRequestingUser = (req: Request) => {
-  return (req as any).user || { id: '65f0a1b2c3d4e5f607890abc', role: 'SuperAdmin' };
+  return (req as any).user;
 };
 
 export const getUserNotifications = async (req: Request, res: Response): Promise<void> => {

@@ -121,11 +121,12 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
         
       const method = mode === 'edit' ? 'PUT' : 'POST';
 
+      const token = localStorage.getItem('accessToken');
       const res = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
-          // 'Authorization': `Bearer ${token}` // TODO: Add real token when Google Auth is complete
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(formData),
       });

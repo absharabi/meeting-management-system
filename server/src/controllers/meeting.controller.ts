@@ -13,9 +13,11 @@ const isGlobalAdmin = (role: string) => {
 
 export const createMeeting = async (req: Request, res: Response): Promise<void> => {
   try {
-    // TEMPORARY: Dummy user since auth is bypassed
-    const requestingUser = (req as any).user || { id: '65f0a1b2c3d4e5f607890abc', role: Role.SuperAdmin };
-    
+    const requestingUser = (req as any).user;
+    if (!requestingUser) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
     // All authenticated users can create meetings
 
     const { date, startTime, endTime, venue, mode, participants } = req.body;
@@ -197,8 +199,11 @@ export const getMeetings = async (req: Request, res: Response): Promise<void> =>
 
 export const updateMeeting = async (req: Request, res: Response): Promise<void> => {
   try {
-    const requestingUser = (req as any).user || { id: '65f0a1b2c3d4e5f607890abc', role: Role.SuperAdmin };
-    
+    const requestingUser = (req as any).user;
+    if (!requestingUser) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
     const meetingId = req.params.id;
     const target = await Meeting.findById(meetingId);
     
@@ -297,8 +302,11 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
 
 export const deleteMeeting = async (req: Request, res: Response): Promise<void> => {
   try {
-    const requestingUser = (req as any).user || { id: '65f0a1b2c3d4e5f607890abc', role: Role.SuperAdmin };
-    
+    const requestingUser = (req as any).user;
+    if (!requestingUser) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
     const target = await Meeting.findById(req.params.id);
     if (!target) {
       res.status(404).json({ message: 'Meeting not found' });
@@ -354,8 +362,11 @@ export const deleteMeeting = async (req: Request, res: Response): Promise<void> 
 
 export const markAttendance = async (req: Request, res: Response): Promise<void> => {
   try {
-    const requestingUser = (req as any).user || { id: '65f0a1b2c3d4e5f607890abc', role: Role.SuperAdmin };
-    
+    const requestingUser = (req as any).user;
+    if (!requestingUser) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
     const target = await Meeting.findById(req.params.id);
     if (!target) {
       res.status(404).json({ message: 'Meeting not found' });

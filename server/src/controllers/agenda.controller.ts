@@ -14,13 +14,14 @@ export const createAgenda = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const requestingUser = (req as any).user || { id: '65f0a1b2c3d4e5f607890abc' }; // Mock user
+    const requestingUser = (req as any).user;
     
-    // Determine status: if organizer creates it, auto-approve. If participant creates it, it's pending.
-    let status = AgendaStatus.Pending;
-    if (meeting.organizerId.toString() === requestingUser.id) {
-      status = AgendaStatus.Approved;
+    if (!requestingUser) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
     }
+    // All agendas must be explicitly approved, even if created by the organizer
+    let status = AgendaStatus.Pending;
 
     const newAgenda = await Agenda.create({
       ...req.body,
@@ -41,9 +42,9 @@ export const createAgenda = async (req: Request, res: Response): Promise<void> =
           recipient: meeting.organizerId,
           type: 'Agenda Proposed',
           message: `A new agenda item was proposed for: ${meeting.title}`,
-          relatedMeeting: meetingId,
-          actionUrl: `/meetings/${meetingId}`
-        });
+          relatedMeeting: meeting._id,
+          actionUrl: `/meetings/${meeting._id}`
+        }) as any;
         emitNotification(notif.recipient.toString(), notif);
       }
     }
@@ -82,7 +83,12 @@ export const updateAgendaStatus = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    const requestingUser = (req as any).user || { id: '65f0a1b2c3d4e5f607890abc' };
+    const requestingUser = (req as any).user;
+    if (!requestingUser) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
     if (agenda.proposedBy && agenda.proposedBy._id.toString() !== requestingUser.id) {
       const proposer = await User.findById(agenda.proposedBy._id);
       if (
@@ -97,7 +103,7 @@ export const updateAgendaStatus = async (req: Request, res: Response): Promise<v
           message: `Your proposed agenda item was ${status.toLowerCase()}`,
           relatedMeeting: agenda.meetingId,
           actionUrl: `/meetings/${agenda.meetingId}`
-        });
+        }) as any;
         emitNotification(notif.recipient.toString(), notif);
       }
     }

@@ -6,8 +6,12 @@ import {
   deleteAgenda,
   reorderAgendas
 } from '../controllers/agenda.controller';
+import { protect } from '../middleware/auth.middleware';
 
 const router = express.Router({ mergeParams: true });
+
+// Protect all agenda routes
+router.use(protect);
 
 // Agenda routes mounted under /api/meetings/:meetingId/agendas
 router.put('/reorder', reorderAgendas);
