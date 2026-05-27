@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { LayoutDashboard, Users, Calendar, X, LogOut } from 'lucide-react';
 
 interface SidebarProps {
@@ -13,6 +13,16 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole = 'User' }) => {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleLogout = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    window.dispatchEvent(new Event('auth-change'));
+    router.push('/');
+  };
+
   const isAdminOrSuper = userRole === 'SuperAdmin' || userRole === 'Admin';
   const canManageMeetings = true; // All users can create meetings
   const itemClass = (active: boolean) =>
@@ -77,7 +87,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole = 'User' })
         </nav>
         
         <div className="p-4 border-t border-gray-200 dark:border-gray-800">
-          <button className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors font-medium text-left">
+          <button onClick={handleLogout} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors font-medium text-left">
             <LogOut size={18} />
             Log out
           </button>

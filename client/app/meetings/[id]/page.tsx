@@ -29,6 +29,8 @@ export default function MeetingDetailsPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   
   const [newAgenda, setNewAgenda] = useState({ title: '', description: '', timeAllocated: 15, isEmergency: false });
+  const [userRating, setUserRating] = useState<number>(0);
+  const [hoverRating, setHoverRating] = useState<number>(0);
 
   const fetchMeetingAndAgendas = async () => {
     try {
@@ -585,7 +587,7 @@ export default function MeetingDetailsPage() {
           </div>
 
           {/* Action Items Form */}
-          {isAdminOrSuperAdmin && (
+          {isOrganizerOrAdmin && (
             <div className="p-5 bg-gray-50 dark:bg-gray-800/50">
               <h4 className="font-medium text-sm text-gray-900 dark:text-white mb-3">Assign New Task</h4>
               <form onSubmit={handleAddActionItem} className="space-y-3">
@@ -623,7 +625,10 @@ export default function MeetingDetailsPage() {
             {[1, 2, 3, 4, 5].map((star) => (
               <button 
                 key={star}
+                onMouseEnter={() => setHoverRating(star)}
+                onMouseLeave={() => setHoverRating(0)}
                 onClick={async () => {
+                  setUserRating(star);
                   try {
                     const token = localStorage.getItem('accessToken');
                     await fetch('http://localhost:5000/api/feedback', {
@@ -636,7 +641,11 @@ export default function MeetingDetailsPage() {
                     console.error(e);
                   }
                 }}
-                className="text-3xl hover:scale-125 transition-transform text-amber-300 hover:text-amber-500"
+                className={`text-3xl transition-all ${
+                  star <= (hoverRating || userRating)
+                    ? 'text-amber-500 scale-110 drop-shadow-md'
+                    : 'text-gray-300 dark:text-gray-600 hover:text-amber-300'
+                }`}
               >
                 ★
               </button>

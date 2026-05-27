@@ -191,7 +191,8 @@ export const getMeetings = async (req: Request, res: Response): Promise<void> =>
       const accessFilter = {
         $or: [
           { organizerId: requestingUser.id },
-          { 'participants.user': requestingUser.id }
+          { 'participants.user': requestingUser.id },
+          { visibility: 'Public' }
         ]
       };
       

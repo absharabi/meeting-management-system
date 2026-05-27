@@ -5,6 +5,7 @@ import { UserCircle, Search, Menu, Sun, Moon, Shield, Star } from 'lucide-react'
 import NotificationDropdown from './NotificationDropdown';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 interface NavbarProps {
   onMenuClick: () => void;
@@ -17,6 +18,15 @@ export default function Navbar({ onMenuClick, searchQuery = '', onSearchChange }
   const { theme, setTheme } = useTheme();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const router = useRouter();
+
+  const handleLogout = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    window.dispatchEvent(new Event('auth-change'));
+    router.push('/');
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -119,7 +129,7 @@ export default function Navbar({ onMenuClick, searchQuery = '', onSearchChange }
                   <Link href="/settings" className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">Profile</Link>
                   <Link href="/settings" className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">Settings</Link>
                   <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                  <button className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">Logout</button>
+                  <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">Logout</button>
                 </div>
               </div>
             )}

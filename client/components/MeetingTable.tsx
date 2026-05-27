@@ -34,7 +34,7 @@ export default function MeetingTable({
   const [dateFilter, setDateFilter] = useState('All');
   const [isLoading, setIsLoading] = useState(true);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'created' | 'invited' | 'all'>('created');
+  const [activeTab, setActiveTab] = useState<'created' | 'invited' | 'public' | 'all'>('created');
 
   // Attendance Modal State
   const [attendanceModalMeeting, setAttendanceModalMeeting] = useState<Meeting | null>(null);
@@ -131,6 +131,7 @@ export default function MeetingTable({
 
     if (activeTab === 'created') return isOrganizer;
     if (activeTab === 'invited') return isParticipant && !isOrganizer;
+    if (activeTab === 'public') return meeting.visibility === 'Public' && !isOrganizer && !isParticipant;
 
     return true;
   });
@@ -201,6 +202,12 @@ export default function MeetingTable({
                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === 'invited' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
               >
                 Attended Meetings
+              </button>
+              <button
+                onClick={() => setActiveTab('public')}
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === 'public' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+              >
+                Public Meetings
               </button>
               {(currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin') && (
                 <button
@@ -422,30 +429,37 @@ export default function MeetingTable({
 
             <div className="p-6 overflow-y-auto flex-1">
               <p className="text-sm text-gray-500 mb-4 font-medium uppercase tracking-wider">Participant List</p>
-              {(!attendanceModalMeeting.participants || attendanceModalMeeting.participants.length === 0) ? (
-                <p className="text-gray-500">No participants invited.</p>
-              ) : (
-                <div className="space-y-3">
-                  {attendanceModalMeeting.participants.map((p: any) => {
-                    const user = p.user;
-                    if (!user) return null;
-                    return (
-                      <label key={user._id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={attendedIds.has(user._id)}
-                          onChange={() => toggleAttendance(user._id)}
-                          className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">{user.name}</p>
-                          <p className="text-xs text-gray-500">{user.email}</p>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
+              {(() => {
+                const acceptedParticipants = attendanceModalMeeting.participants?.filter((p: any) => p.status === 'Accepted') || [];
+                if (!attendanceModalMeeting.participants || attendanceModalMeeting.participants.length === 0) {
+                  return <p className="text-gray-500">No participants invited.</p>;
+                }
+                if (acceptedParticipants.length === 0) {
+                  return <p className="text-gray-500">No participants have accepted the invitation yet.</p>;
+                }
+                return (
+                  <div className="space-y-3">
+                    {acceptedParticipants.map((p: any) => {
+                      const user = p.user;
+                      if (!user) return null;
+                      return (
+                        <label key={user._id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={attendedIds.has(user._id)}
+                            onChange={() => toggleAttendance(user._id)}
+                            className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <div>
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">{user.name}</p>
+                            <p className="text-xs text-gray-500">{user.email}</p>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 flex justify-end gap-3">
