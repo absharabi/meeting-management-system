@@ -122,12 +122,16 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
       const method = mode === 'edit' ? 'PUT' : 'POST';
 
       const token = localStorage.getItem('accessToken');
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
       const res = await fetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers,
         body: JSON.stringify(formData),
       });
 

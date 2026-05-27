@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { closestCenter, DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { ArrowLeft, Download, Plus, RefreshCw, Save, ShieldCheck, UserPlus } from "lucide-react";
+import { ArrowLeft, Download, Plus, RefreshCw, Save, ShieldCheck } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import "react-quill-new/dist/quill.snow.css";
@@ -40,18 +40,12 @@ interface MeetingAgenda {
   sequence?: number;
 }
 
-const emptyMember = (): MemberPresent => ({
-  name: "",
-  designation: "",
-  attendanceMode: "In person",
-});
-
 const defaultCoverDetails = (meeting?: MomMeeting | null): MomCoverDetails => ({
   meetingNumber: "71st",
   meetingBody: "Board of Governors",
   instituteName: "National Institute of Technology Calicut",
-  dateLine: meeting ? `on ${new Date(meeting.date).toLocaleDateString("en-IN")} at meeting time` : "",
-  venueLine: meeting ? `Through hybrid mode hosted at ${meeting.venue || meeting.link || "the notified venue"}` : "",
+  dateLine: meeting ? `on ${formatDate(meeting.date)} from ${meeting.startTime || "start time"} to ${meeting.endTime || "end time"}` : "",
+  venueLine: meeting ? `${meeting.mode || "Meeting"} mode at ${meeting.venue || meeting.link || "the notified venue"}` : "",
 });
 
 export default function MomPage() {
@@ -90,8 +84,8 @@ export default function MomPage() {
       }
 
       setMeeting(data);
-      setMembersPresent(data.membersPresent || []);
-      setMomCoverDetails({ ...defaultCoverDetails(data), ...(data.momCoverDetails || {}) });
+      setMembersPresent(deriveMembersFromParticipants(data));
+      setMomCoverDetails(mergeCoverDetails(data, data.momCoverDetails));
       setSourceAgendas(agendaData);
       setAgendaItems(mergeAgendaModuleItems(data.agendaItems || [], agendaData));
       setMomStatus(data.momStatus || "Draft");
@@ -112,15 +106,15 @@ export default function MomPage() {
 
   const previewMeeting = useMemo<MomMeeting | null>(() => {
     if (!meeting) return null;
-    return { ...meeting, membersPresent, agendaItems, momCoverDetails, momStatus };
+    return { ...meeting, membersPresent: deriveMembersFromParticipants(meeting), agendaItems, momCoverDetails, momStatus };
   }, [agendaItems, meeting, membersPresent, momCoverDetails, momStatus]);
 
   const saveMom = async (status: MomStatus = momStatus) => {
     setIsSaving(true);
     try {
       const payload = {
-        membersPresent,
-        momCoverDetails,
+        membersPresent: meeting ? deriveMembersFromParticipants(meeting) : membersPresent,
+        momCoverDetails: meeting ? mergeCoverDetails(meeting, momCoverDetails) : momCoverDetails,
         agendaItems: agendaItems.map((item, index) => {
           const { _id, ...rest } = item;
           return {
@@ -141,8 +135,8 @@ export default function MomPage() {
       if (!response.ok) throw new Error(data.message || "Unable to save MoM.");
 
       setMeeting(data);
-      setMembersPresent(data.membersPresent || []);
-      setMomCoverDetails({ ...defaultCoverDetails(data), ...(data.momCoverDetails || {}) });
+      setMembersPresent(deriveMembersFromParticipants(data));
+      setMomCoverDetails(mergeCoverDetails(data, data.momCoverDetails));
       setAgendaItems((data.agendaItems || []).sort((a: MomAgendaItem, b: MomAgendaItem) => a.order - b.order));
       setMomStatus(data.momStatus || status);
       setNotice({ message: status === "Confirmed" ? "MoM confirmed." : "MoM draft saved.", type: "success" });
@@ -163,10 +157,6 @@ export default function MomPage() {
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : "Unable to export PDF.", type: "error" });
     }
-  };
-
-  const updateMember = (index: number, member: MemberPresent) => {
-    setMembersPresent((current) => current.map((item, itemIndex) => itemIndex === index ? member : item));
   };
 
   const updateAgendaItem = (index: number, item: MomAgendaItem) => {
@@ -262,6 +252,21 @@ export default function MomPage() {
 
         <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
           <div className="mb-4">
+            <h2 className="font-bold text-gray-900 dark:text-white">Meeting Details</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Pulled directly from the meeting module.</p>
+          </div>
+          <dl className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+            <InfoRow label="Title" value={meeting.title} />
+            <InfoRow label="Type" value={meeting.meetingType || "Meeting"} />
+            <InfoRow label="Date" value={formatDate(meeting.date)} />
+            <InfoRow label="Time" value={`${meeting.startTime || "-"} to ${meeting.endTime || "-"}`} />
+            <InfoRow label="Mode" value={meeting.mode || "-"} />
+            <InfoRow label="Venue / Link" value={meeting.venue || meeting.link || "-"} />
+          </dl>
+        </section>
+
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          <div className="mb-4">
             <h2 className="font-bold text-gray-900 dark:text-white">Cover Details</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400">These fields control the first page of the official MoM template.</p>
           </div>
@@ -276,43 +281,45 @@ export default function MomPage() {
               <input value={momCoverDetails.instituteName} onChange={(event) => setMomCoverDetails((current) => ({ ...current, instituteName: event.target.value }))} className={inputClass} placeholder="National Institute of Technology Calicut" />
             </CoverField>
             <CoverField label="Date Line">
-              <input value={momCoverDetails.dateLine} onChange={(event) => setMomCoverDetails((current) => ({ ...current, dateLine: event.target.value }))} className={inputClass} placeholder="on 11th December 2024 at 4.00 P.M." />
+              <input readOnly value={momCoverDetails.dateLine} className={`${inputClass} cursor-not-allowed bg-gray-50 dark:bg-gray-900`} />
             </CoverField>
             <div className="md:col-span-2">
               <CoverField label="Venue / Mode Line">
-                <input value={momCoverDetails.venueLine} onChange={(event) => setMomCoverDetails((current) => ({ ...current, venueLine: event.target.value }))} className={inputClass} placeholder="Through hybrid mode hosted at Board Office, Administrative Block A, NIT Calicut" />
+                <input readOnly value={momCoverDetails.venueLine} className={`${inputClass} cursor-not-allowed bg-gray-50 dark:bg-gray-900`} />
               </CoverField>
             </div>
           </div>
         </section>
 
         <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h2 className="font-bold text-gray-900 dark:text-white">Members Present</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Name, designation, and attendance mode.</p>
-            </div>
-            <button onClick={() => setMembersPresent((current) => [...current, emptyMember()])} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-              <UserPlus size={16} />
-              Add Member
-            </button>
+          <div className="mb-4">
+            <h2 className="font-bold text-gray-900 dark:text-white">Invited Participants</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Automatically copied from the meeting module. Add or remove invitees from Edit Meeting.</p>
           </div>
-          <div className="space-y-3">
-            {membersPresent.map((member, index) => (
-              <div key={index} className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_180px_auto]">
-                <input value={member.name} onChange={(event) => updateMember(index, { ...member, name: event.target.value })} className={inputClass} placeholder="Member name" />
-                <input value={member.designation} onChange={(event) => updateMember(index, { ...member, designation: event.target.value })} className={inputClass} placeholder="Designation" />
-                <select value={member.attendanceMode} onChange={(event) => updateMember(index, { ...member, attendanceMode: event.target.value })} className={inputClass}>
-                  <option>In person</option>
-                  <option>Online</option>
-                  <option>Hybrid</option>
-                </select>
-                <button onClick={() => setMembersPresent((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="rounded-xl border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:border-red-900/60 dark:hover:bg-red-900/20">
-                  Remove
-                </button>
-              </div>
-            ))}
-            {membersPresent.length === 0 && <p className="rounded-xl border border-dashed border-gray-300 p-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">No members added yet.</p>}
+          <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-950 dark:text-gray-400">
+                <tr>
+                  <th className="px-4 py-3">Name</th>
+                  <th className="px-4 py-3">Department</th>
+                  <th className="px-4 py-3">Attendance Mode</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {membersPresent.map((member, index) => (
+                  <tr key={`${member.name}-${index}`} className="bg-white dark:bg-gray-900">
+                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{member.name || "-"}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{member.designation || "-"}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{member.attendanceMode || "-"}</td>
+                  </tr>
+                ))}
+                {membersPresent.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">No participants invited in the meeting module.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
 
@@ -366,6 +373,15 @@ function CoverField({ label, children }: { label: string; children: React.ReactN
   );
 }
 
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-950">
+      <dt className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</dt>
+      <dd className="mt-1 font-medium text-gray-900 dark:text-white">{value}</dd>
+    </div>
+  );
+}
+
 async function readJsonResponse(response: Response) {
   const text = await response.text();
   if (!text) return null;
@@ -375,6 +391,33 @@ async function readJsonResponse(response: Response) {
   } catch {
     return { message: text };
   }
+}
+
+function deriveMembersFromParticipants(meeting: MomMeeting): MemberPresent[] {
+  const mode = meeting.mode === "Online" ? "Online" : meeting.mode === "Hybrid" ? "Hybrid" : "In person";
+
+  return (meeting.participants || [])
+    .map((participant) => {
+      const user = participant.user;
+      if (!user || typeof user === "string") return null;
+
+      return {
+        name: user.name || user.email || "Unnamed participant",
+        designation: user.department || "Invited participant",
+        attendanceMode: mode,
+      };
+    })
+    .filter((member): member is MemberPresent => Boolean(member));
+}
+
+function mergeCoverDetails(meeting: MomMeeting, details?: Partial<MomCoverDetails> | null): MomCoverDetails {
+  const derived = defaultCoverDetails(meeting);
+  return {
+    ...derived,
+    ...(details || {}),
+    dateLine: derived.dateLine,
+    venueLine: derived.venueLine,
+  };
 }
 
 function mergeAgendaModuleItems(existingItems: MomAgendaItem[], agendaModuleItems: MeetingAgenda[]) {

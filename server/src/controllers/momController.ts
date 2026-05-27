@@ -7,6 +7,33 @@ const populateMeeting = (id: string) => Meeting.findById(id)
   .populate('participants.user', 'name email department')
   .populate('attendance', 'name email department');
 
+const deriveMembersFromParticipants = (meeting: any) => {
+  const mode = meeting.mode === 'Online' ? 'Online' : meeting.mode === 'Hybrid' ? 'Hybrid' : 'In person';
+
+  return (meeting.participants || [])
+    .map((participant: any) => {
+      const user = participant.user;
+      if (!user || typeof user === 'string') return null;
+
+      return {
+        name: user.name || user.email || 'Unnamed participant',
+        designation: user.department || 'Invited participant',
+        attendanceMode: mode,
+      };
+    })
+    .filter(Boolean);
+};
+
+const withDerivedMomMembers = (meeting: any) => {
+  if (!meeting) return meeting;
+  const meetingObject = typeof meeting.toObject === 'function' ? meeting.toObject() : meeting;
+  return {
+    ...meetingObject,
+    membersPresent: deriveMembersFromParticipants(meetingObject),
+    momCoverDetails: buildCoverDetailsFromMeeting(meetingObject, meetingObject.momCoverDetails),
+  };
+};
+
 const normalizeAgendaItems = (items: any[] = []) => items.map((item, index) => ({
   sourceAgendaId: item.sourceAgendaId || null,
   itemNumber: item.itemNumber,
@@ -29,6 +56,14 @@ const normalizeCoverDetails = (details: any = {}) => ({
   venueLine: details.venueLine || '',
 });
 
+function buildCoverDetailsFromMeeting(meeting: any, details: any = {}) {
+  return {
+    ...normalizeCoverDetails(details),
+    dateLine: `on ${new Date(meeting.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })} from ${meeting.startTime || 'start time'} to ${meeting.endTime || 'end time'}`,
+    venueLine: `${meeting.mode || 'Meeting'} mode at ${meeting.venue || meeting.link || 'the notified venue'}`,
+  };
+}
+
 export const getMom = async (req: Request, res: Response): Promise<void> => {
   try {
     const meeting = await populateMeeting(req.params.id);
@@ -37,7 +72,7 @@ export const getMom = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    res.json(meeting);
+    res.json(withDerivedMomMembers(meeting));
   } catch (error) {
     res.status(500).json({ message: 'Server error while loading MoM', error });
   }
@@ -45,11 +80,17 @@ export const getMom = async (req: Request, res: Response): Promise<void> => {
 
 export const saveMom = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { membersPresent, agendaItems, momCoverDetails, momStatus } = req.body;
+    const { agendaItems, momCoverDetails, momStatus } = req.body;
+    const target = await populateMeeting(req.params.id);
+    if (!target) {
+      res.status(404).json({ message: 'Meeting not found' });
+      return;
+    }
+
     const update = {
-      membersPresent: membersPresent || [],
+      membersPresent: deriveMembersFromParticipants(target),
       agendaItems: normalizeAgendaItems(agendaItems),
-      momCoverDetails: normalizeCoverDetails(momCoverDetails),
+      momCoverDetails: buildCoverDetailsFromMeeting(target, momCoverDetails),
       momStatus: momStatus === MomStatus.Confirmed ? MomStatus.Confirmed : MomStatus.Draft,
     };
 
@@ -63,7 +104,7 @@ export const saveMom = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    res.json(await populateMeeting(req.params.id));
+    res.json(withDerivedMomMembers(await populateMeeting(req.params.id)));
   } catch (error) {
     res.status(500).json({ message: 'Server error while saving MoM', error });
   }
@@ -72,9 +113,15 @@ export const saveMom = async (req: Request, res: Response): Promise<void> => {
 export const patchMom = async (req: Request, res: Response): Promise<void> => {
   try {
     const update: any = {};
-    if (Array.isArray(req.body.membersPresent)) update.membersPresent = req.body.membersPresent;
+    const target = await populateMeeting(req.params.id);
+    if (!target) {
+      res.status(404).json({ message: 'Meeting not found' });
+      return;
+    }
+
+    update.membersPresent = deriveMembersFromParticipants(target);
     if (Array.isArray(req.body.agendaItems)) update.agendaItems = normalizeAgendaItems(req.body.agendaItems);
-    if (req.body.momCoverDetails) update.momCoverDetails = normalizeCoverDetails(req.body.momCoverDetails);
+    if (req.body.momCoverDetails) update.momCoverDetails = buildCoverDetailsFromMeeting(target, req.body.momCoverDetails);
     if (req.body.momStatus) update.momStatus = req.body.momStatus;
 
     const meeting = await Meeting.findByIdAndUpdate(req.params.id, update, {
@@ -87,7 +134,7 @@ export const patchMom = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    res.json(await populateMeeting(req.params.id));
+    res.json(withDerivedMomMembers(await populateMeeting(req.params.id)));
   } catch (error) {
     res.status(500).json({ message: 'Server error while updating MoM', error });
   }
@@ -101,7 +148,7 @@ export const exportMom = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const pdf = await generateMomPdf(meeting);
+    const pdf = await generateMomPdf(withDerivedMomMembers(meeting) as any);
     const filename = `${meeting.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'mom'}.pdf`;
 
     res.setHeader('Content-Type', 'application/pdf');

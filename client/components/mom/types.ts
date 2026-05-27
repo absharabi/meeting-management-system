@@ -7,6 +7,18 @@ export interface MemberPresent {
   attendanceMode: string;
 }
 
+export interface MomUser {
+  _id: string;
+  name: string;
+  email?: string;
+  department?: string;
+}
+
+export interface MomParticipant {
+  user?: MomUser | string | null;
+  status?: string;
+}
+
 export interface MomAgendaItem {
   _id?: string;
   sourceAgendaId?: string | null;
@@ -36,6 +48,11 @@ export interface MomMeeting {
   date: string;
   venue?: string;
   link?: string;
+  startTime?: string;
+  endTime?: string;
+  meetingType?: string;
+  mode?: string;
+  participants?: MomParticipant[];
   membersPresent: MemberPresent[];
   agendaItems: MomAgendaItem[];
   momCoverDetails?: MomCoverDetails;
