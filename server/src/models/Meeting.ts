@@ -19,6 +19,11 @@ export enum MeetingStatus {
   Cancelled = 'Cancelled',
 }
 
+export enum MomStatus {
+  Draft     = 'Draft',
+  Confirmed = 'Confirmed',
+}
+
 export enum MeetingType {
   Board      = 'Board Meeting',
   Department = 'Department Meeting',
@@ -49,9 +54,76 @@ export interface IMeeting extends Document {
   groupId?:     string;
   recurrencePattern?: string;
   offlineReportFileUrl?: string;
+  membersPresent: {
+    name: string;
+    designation: string;
+    attendanceMode: string;
+  }[];
+  agendaItems: {
+    sourceAgendaId?: Types.ObjectId;
+    itemNumber: string;
+    sectionTag?: string;
+    sectionGroup: string;
+    subject: string;
+    backgroundNote: string;
+    decision: string;
+    actionRequired: string;
+    responsiblePerson: string;
+    targetDate?: Date;
+    order: number;
+  }[];
+  momCoverDetails: {
+    meetingNumber: string;
+    meetingBody: string;
+    instituteName: string;
+    dateLine: string;
+    venueLine: string;
+  };
+  momStatus: MomStatus;
   createdAt:    Date;
   updatedAt:    Date;
 }
+
+const MembersPresentSchema = new Schema(
+  {
+    name: { type: String, trim: true, default: '' },
+    designation: { type: String, trim: true, default: '' },
+    attendanceMode: { type: String, enum: ['In person', 'Online', 'Hybrid'], default: 'In person' },
+  },
+  { _id: false }
+);
+
+const AgendaItemSchema = new Schema(
+  {
+    sourceAgendaId: { type: Schema.Types.ObjectId, ref: 'Agenda', default: null },
+    itemNumber: { type: String, trim: true, default: '' },
+    sectionTag: { type: String, trim: true, default: '' },
+    sectionGroup: {
+      type: String,
+      enum: ['Procedural', 'Consideration & Approval', 'Reporting', 'Any Other Matter'],
+      default: 'Procedural',
+    },
+    subject: { type: String, trim: true, default: '' },
+    backgroundNote: { type: String, default: '' },
+    decision: { type: String, default: '' },
+    actionRequired: { type: String, trim: true, default: '' },
+    responsiblePerson: { type: String, trim: true, default: '' },
+    targetDate: { type: Date, default: null },
+    order: { type: Number, default: 0 },
+  },
+  { _id: true }
+);
+
+const MomCoverDetailsSchema = new Schema(
+  {
+    meetingNumber: { type: String, trim: true, default: '' },
+    meetingBody: { type: String, trim: true, default: 'Board of Governors' },
+    instituteName: { type: String, trim: true, default: 'National Institute of Technology Calicut' },
+    dateLine: { type: String, trim: true, default: '' },
+    venueLine: { type: String, trim: true, default: '' },
+  },
+  { _id: false }
+);
 
 const MeetingSchema = new Schema<IMeeting>(
   {
@@ -129,6 +201,23 @@ const MeetingSchema = new Schema<IMeeting>(
     offlineReportFileUrl: {
       type: String,
       default: null
+    },
+    membersPresent: {
+      type: [MembersPresentSchema],
+      default: []
+    },
+    agendaItems: {
+      type: [AgendaItemSchema],
+      default: []
+    },
+    momCoverDetails: {
+      type: MomCoverDetailsSchema,
+      default: () => ({})
+    },
+    momStatus: {
+      type: String,
+      enum: Object.values(MomStatus),
+      default: MomStatus.Draft
     }
   },
   { 
