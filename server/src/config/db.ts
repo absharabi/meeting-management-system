@@ -51,6 +51,13 @@ const seedSuperAdmin = async () => {
       });
       console.log(`Auto-seeded SuperAdmin for ${email}`);
     } else {
+      const defaultPermissions = require('../models/User').getDefaultPermissionsForRole(Role.SuperAdmin);
+      const hasAllPermissions = defaultPermissions.every((permission: string) => exists.permissions?.includes(permission));
+      if (exists.role === Role.SuperAdmin && !hasAllPermissions) {
+        exists.permissions = defaultPermissions;
+        await exists.save();
+        console.log(`Updated SuperAdmin permissions for ${email}.`);
+      }
       console.log(`SuperAdmin for ${email} already exists.`);
     }
 

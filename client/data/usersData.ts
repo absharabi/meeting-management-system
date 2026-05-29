@@ -67,6 +67,12 @@ export const permissionModules: PermissionModule[] = [
   "Settings",
 ];
 
+export const roleDefaultPermissions: Record<string, PermissionModule[]> = {
+  Admin: ["Meetings", "Reports", "User Management", "Audit Logs", "Settings"],
+  Reviewer: ["Meetings", "Reports", "Audit Logs"],
+  User: ["Meetings"],
+};
+
 export const users: ManagedUser[] = [];
 
 export const userStats = [

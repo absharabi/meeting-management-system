@@ -37,20 +37,18 @@ export default function BulkUploadModal({ isOpen, onClose, onComplete }: BulkUpl
     "employeeId",
     "department",
     "status",
-    "permissions",
   ];
 
   const templateInstructions = [
     ["Column", "Required", "Accepted values / notes"],
     ["name", "Yes", "Full name of the user"],
     ["email", "Yes", "Unique email address"],
-    ["role", "Yes", "Admin, User, or Reviewer. SuperAdmin is not allowed in bulk upload."],
+    ["role", "Yes", "Admin, User, or Reviewer. Permissions are allotted automatically from role."],
     ["username", "No", "Optional login/display username"],
     ["phone", "No", "Optional phone number"],
     ["employeeId", "No", "Optional employee/staff ID"],
     ["department", "No", "Department name"],
     ["status", "No", "Active or Inactive. Blank defaults to Active."],
-    ["permissions", "No", "Comma-separated values: Meetings, Reports, User Management, Audit Logs, Settings"],
   ];
 
   const downloadBlob = (blob: Blob, name: string) => {

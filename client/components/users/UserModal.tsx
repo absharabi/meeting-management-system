@@ -2,7 +2,7 @@
 
 import React, { FormEvent, useEffect, useMemo, useState } from "react";
 import { Camera, Check, ShieldCheck, X } from "lucide-react";
-import { departments, ManagedUser, PermissionModule, permissionModules, roles, UserStatus } from "@/data/usersData";
+import { departments, ManagedUser, PermissionModule, permissionModules, roleDefaultPermissions, roles, UserStatus } from "@/data/usersData";
 
 export interface UserFormValues {
   fullName: string;
@@ -30,6 +30,7 @@ const fieldDepartments = departments.filter((department) => department !== "All 
 const fieldRoles = roles.filter((role) => role !== "All Roles" && role !== "SuperAdmin");
 
 export default function UserModal({ isOpen, user, onClose, onSave }: UserModalProps) {
+  const isEditing = Boolean(user);
   const [form, setForm] = useState({
     fullName: "",
     username: "",
@@ -70,7 +71,7 @@ export default function UserModal({ isOpen, user, onClose, onSave }: UserModalPr
         department: fieldDepartments[0],
         role: "User",
         status: "Active",
-        permissions: ["Meetings"],
+        permissions: roleDefaultPermissions.User,
       });
     }
     setErrors({});
@@ -84,7 +85,17 @@ export default function UserModal({ isOpen, user, onClose, onSave }: UserModalPr
   if (!isOpen) return null;
 
   const update = (key: keyof typeof form, value: string | string[]) => {
-    setForm((previous) => ({ ...previous, [key]: value }));
+    setForm((previous) => {
+      if (key === "role") {
+        return {
+          ...previous,
+          role: value as string,
+          permissions: isEditing ? previous.permissions : roleDefaultPermissions[value as string] || roleDefaultPermissions.User,
+        };
+      }
+
+      return { ...previous, [key]: value };
+    });
   };
 
   const togglePermission = (module: PermissionModule) => {
@@ -120,7 +131,9 @@ export default function UserModal({ isOpen, user, onClose, onSave }: UserModalPr
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-800">
           <div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">{title}</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Create Google-authenticated users, assign department roles, and configure permissions.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {isEditing ? "Update account details and revoke module access when needed." : "Create Google-authenticated users with role-based default permissions."}
+            </p>
           </div>
           <button onClick={onClose} className="rounded-xl p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200" aria-label="Close modal">
             <X size={20} />
@@ -199,7 +212,9 @@ export default function UserModal({ isOpen, user, onClose, onSave }: UserModalPr
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900 dark:text-white">Permissions</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Choose modules this user can access.</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {isEditing ? "Uncheck modules to revoke access for this user." : "Automatically allotted from the selected role."}
+                    </p>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -209,12 +224,15 @@ export default function UserModal({ isOpen, user, onClose, onSave }: UserModalPr
                       <button
                         type="button"
                         key={module}
-                        onClick={() => togglePermission(module)}
+                        onClick={() => {
+                          if (isEditing) togglePermission(module);
+                        }}
+                        disabled={!isEditing}
                         className={`flex items-center justify-between rounded-xl border p-3 text-left text-sm font-semibold transition-all ${
                           checked
                             ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300"
                             : "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-950/60 dark:text-gray-300 dark:hover:bg-gray-800"
-                        }`}
+                        } ${!isEditing ? "cursor-default hover:bg-gray-50 disabled:opacity-75 dark:hover:bg-gray-950/60" : ""}`}
                       >
                         {module}
                         <span className={`flex h-5 w-5 items-center justify-center rounded-full border ${checked ? "border-blue-600 bg-blue-600 text-white" : "border-gray-300 dark:border-gray-700"}`}>
