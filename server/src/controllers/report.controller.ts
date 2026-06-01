@@ -2,25 +2,31 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Meeting from '../models/Meeting';
 import Agenda from '../models/Agenda';
+import ActionItem from '../models/ActionItem';
+import User from '../models/User';
 
 export const getMeetingReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id: identifier } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      res.status(400).json({ message: 'Invalid meeting ID' });
-      return;
+    let meetingQuery;
+    if (mongoose.Types.ObjectId.isValid(identifier)) {
+      meetingQuery = { _id: identifier };
+    } else {
+      meetingQuery = { title: { $regex: identifier, $options: 'i' } };
     }
 
-    const meeting = await Meeting.findById(id)
+    const meeting = await Meeting.findOne(meetingQuery)
       .populate('organizerId', 'name email role')
       .populate('participants.user', 'name email role')
       .populate('attendance', 'name email role');
 
     if (!meeting) {
-      res.status(404).json({ message: 'Meeting not found' });
+      res.status(404).json({ message: 'Meeting not found matching that name or ID' });
       return;
     }
+
+    const id = meeting._id;
 
     const requestingUser = (req as any).user;
     // TEMPORARY BYPASS: Allow viewing any meeting details during local testing
@@ -32,6 +38,7 @@ export const getMeetingReport = async (req: Request, res: Response): Promise<voi
     // }
 
     const agendas = await Agenda.find({ meetingId: id }).sort({ sequence: 1 }).populate('proposedBy', 'name');
+    const actionItems = await ActionItem.find({ meetingId: id }).populate('assigneeId', 'name email');
 
     // Calculate attendance percentage
     const totalParticipants = meeting.participants.length;
@@ -41,6 +48,7 @@ export const getMeetingReport = async (req: Request, res: Response): Promise<voi
     res.status(200).json({
       meeting,
       agendas,
+      actionItems,
       metrics: {
         totalParticipants,
         totalAttended,
@@ -54,7 +62,7 @@ export const getMeetingReport = async (req: Request, res: Response): Promise<voi
 
 export const getDateWiseReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, keyword } = req.query;
 
     if (!startDate || !endDate) {
       res.status(400).json({ message: 'startDate and endDate are required' });
@@ -66,11 +74,56 @@ export const getDateWiseReport = async (req: Request, res: Response): Promise<vo
     end.setHours(23, 59, 59, 999);
 
     const requestingUser = (req as any).user;
+    
+    // Deep Keyword Search logic
+    let keywordOrFilters: any[] = [];
+    if (keyword) {
+      const regexKeyword = new RegExp(keyword as string, 'i');
+      
+      const matchedUsers = await User.find({
+        $or: [{ name: regexKeyword }, { email: regexKeyword }]
+      }).select('_id');
+      const matchedUserIds = matchedUsers.map(u => u._id);
+
+      const [matchedAgendas, matchedActionItems] = await Promise.all([
+        Agenda.find({ $or: [{ title: regexKeyword }, { description: regexKeyword }] }).select('meetingId'),
+        ActionItem.find({ $or: [{ title: regexKeyword }, { description: regexKeyword }] }).select('meetingId')
+      ]);
+
+      const matchedMeetingIdsFromRelated = [
+        ...matchedAgendas.map(a => a.meetingId),
+        ...matchedActionItems.map(a => a.meetingId)
+      ];
+
+      keywordOrFilters = [
+        { title: regexKeyword },
+        { description: regexKeyword },
+        { status: regexKeyword }
+      ];
+
+      if (matchedUserIds.length > 0) {
+        keywordOrFilters.push({ organizerId: { $in: matchedUserIds } });
+        keywordOrFilters.push({ 'participants.user': { $in: matchedUserIds } });
+      }
+
+      if (matchedMeetingIdsFromRelated.length > 0) {
+        keywordOrFilters.push({ _id: { $in: matchedMeetingIdsFromRelated } });
+      }
+    }
+
     let query: any = { date: { $gte: start, $lte: end } };
+    
+    if (keywordOrFilters.length > 0) {
+      query = { $and: [{ date: { $gte: start, $lte: end } }, { $or: keywordOrFilters }] };
+    }
     
     // If regular user, only show their organized meetings
     if (requestingUser.role === 'User') {
-      query.organizerId = requestingUser.id;
+      if (query.$and) {
+        query.$and.push({ organizerId: requestingUser.id });
+      } else {
+        query.organizerId = requestingUser.id;
+      }
     }
 
     const meetings = await Meeting.find(query).populate('organizerId', 'name email').sort({ date: 1 });

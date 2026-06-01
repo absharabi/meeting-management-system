@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Meeting, { MeetingMode, MeetingStatus } from '../models/Meeting';
-import { Role } from '../models/User';
+import User, { Role } from '../models/User';
+import Agenda from '../models/Agenda';
+import ActionItem from '../models/ActionItem';
 import Notification from '../models/Notification';
 import { sendEmail } from '../utils/email';
 import { emitNotification } from '../services/socketService';
@@ -169,12 +171,51 @@ export const getMeetings = async (req: Request, res: Response): Promise<void> =>
     // Build an advanced search query object
     let query: any = {};
 
-    // Keyword Search (searches title and description)
+    // Deep Keyword Search
     if (keyword) {
-      query.$or = [
-        { title: { $regex: keyword as string, $options: 'i' } },
-        { description: { $regex: keyword as string, $options: 'i' } }
+      const regexKeyword = new RegExp(keyword as string, 'i');
+      
+      // 1. Find users matching the keyword
+      const matchedUsers = await User.find({
+        $or: [
+          { name: regexKeyword },
+          { email: regexKeyword }
+        ]
+      }).select('_id');
+      const matchedUserIds = matchedUsers.map(user => user._id);
+
+      // 2. Find matching Agendas and Action Items
+      const [matchedAgendas, matchedActionItems] = await Promise.all([
+        Agenda.find({
+          $or: [{ title: regexKeyword }, { description: regexKeyword }]
+        }).select('meetingId'),
+        ActionItem.find({
+          $or: [{ title: regexKeyword }, { description: regexKeyword }]
+        }).select('meetingId')
+      ]);
+
+      const matchedMeetingIdsFromRelated = [
+        ...matchedAgendas.map(a => a.meetingId),
+        ...matchedActionItems.map(a => a.meetingId)
       ];
+
+      // 3. Build the $or array
+      query.$or = [
+        { title: regexKeyword },
+        { description: regexKeyword },
+        { status: regexKeyword }
+      ];
+
+      // 4. Add user references if any users matched
+      if (matchedUserIds.length > 0) {
+        query.$or.push({ organizerId: { $in: matchedUserIds } });
+        query.$or.push({ 'participants.user': { $in: matchedUserIds } });
+      }
+
+      // 5. Add meeting references from matched Agendas/ActionItems
+      if (matchedMeetingIdsFromRelated.length > 0) {
+        query.$or.push({ _id: { $in: matchedMeetingIdsFromRelated } });
+      }
     }
 
     // Status Filter
