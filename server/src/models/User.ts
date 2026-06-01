@@ -7,6 +7,17 @@ export enum Role {
   Reviewer    = 'Reviewer',
 }
 
+export const permissionModules = ['Meetings', 'Reports', 'User Management', 'Audit Logs', 'Settings'];
+
+export const roleDefaultPermissions: Record<Role, string[]> = {
+  [Role.SuperAdmin]: permissionModules,
+  [Role.Admin]: ['Meetings', 'Reports', 'User Management', 'Audit Logs', 'Settings'],
+  [Role.Reviewer]: ['Meetings', 'Reports', 'Audit Logs'],
+  [Role.User]: ['Meetings'],
+};
+
+export const getDefaultPermissionsForRole = (role: Role): string[] => roleDefaultPermissions[role] || roleDefaultPermissions[Role.User];
+
 export interface IUser extends Document {
   googleId?:  string;
   name:       string;
@@ -41,7 +52,7 @@ const UserSchema = new Schema<IUser>(
     avatar:     { type: String },
     role:       { type: String, enum: Object.values(Role), default: Role.User },
     department: { type: String, default: '' },
-    permissions: { type: [String], default: ['Meetings'] },
+    permissions: { type: [String], default: undefined },
     isActive:   { type: Boolean, default: true },
     notificationPreferences: {
       enabled: { type: Boolean, default: true },
@@ -53,5 +64,12 @@ const UserSchema = new Schema<IUser>(
   },
   { timestamps: true }
 );
+
+UserSchema.pre('validate', function (next) {
+  if (this.isNew && (!this.permissions || this.permissions.length === 0)) {
+    this.permissions = getDefaultPermissionsForRole(this.role);
+  }
+  next();
+});
 
 export default mongoose.model<IUser>('User', UserSchema);

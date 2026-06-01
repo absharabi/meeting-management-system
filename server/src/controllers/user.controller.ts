@@ -1,8 +1,20 @@
 import { Request, Response } from 'express';
 import * as XLSX from 'xlsx';
-import User, { Role } from '../models/User';
+import User, { getDefaultPermissionsForRole, permissionModules, Role } from '../models/User';
 
-const allowedPermissions = ['Meetings', 'Reports', 'User Management', 'Audit Logs', 'Settings'];
+const allowedPermissions = permissionModules;
+
+const sanitizePermissions = (permissions: unknown): string[] => {
+  if (!Array.isArray(permissions)) return getDefaultPermissionsForRole(Role.User);
+
+  const sanitized = permissions
+    .map((permission) => permission?.toString().trim())
+    .filter((permission): permission is string => Boolean(permission))
+    .map((permission) => allowedPermissions.find((allowed) => allowed.toLowerCase() === permission.toLowerCase()))
+    .filter((permission): permission is string => Boolean(permission));
+
+  return Array.from(new Set(sanitized));
+};
 
 const getCellValue = (row: Record<string, any>, keys: string[]): string => {
   const entry = Object.entries(row).find(([key]) => keys.includes(key.toLowerCase().replace(/\s+/g, '')));
@@ -20,18 +32,6 @@ const parseRole = (value: string): Role | null => {
 };
 
 const isValidEmail = (value: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-
-const parsePermissions = (value: string): string[] => {
-  if (!value) return ['Meetings'];
-
-  const permissions = value
-    .split(',')
-    .map((permission) => permission.trim())
-    .map((permission) => allowedPermissions.find((allowed) => allowed.toLowerCase() === permission.toLowerCase()))
-    .filter((permission): permission is string => Boolean(permission));
-
-  return permissions.length ? permissions : ['Meetings'];
-};
 
 export const getUsers = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -79,9 +79,10 @@ export const updateMyProfile = async (req: Request, res: Response): Promise<void
 
 export const addUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, username, email, phone, employeeId, role, department, isActive, permissions } = req.body;
+    const { name, username, email, phone, employeeId, role, department, isActive } = req.body;
+    const normalizedRole = parseRole(role) || Role.User;
 
-    if (role === Role.SuperAdmin) {
+    if (normalizedRole === Role.SuperAdmin) {
       res.status(400).json({ message: 'SuperAdmin accounts cannot be created from user management' });
       return;
     }
@@ -92,7 +93,17 @@ export const addUser = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const user = await User.create({ name, username, email, phone, employeeId, role, department, isActive, permissions });
+    const user = await User.create({
+      name,
+      username,
+      email,
+      phone,
+      employeeId,
+      role: normalizedRole,
+      department,
+      isActive,
+      permissions: getDefaultPermissionsForRole(normalizedRole),
+    });
     res.status(201).json(user);
   } catch {
     res.status(500).json({ message: 'Server error' });
@@ -120,9 +131,14 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
+    const updateData: any = { name, username, phone, employeeId, role, department, isActive };
+    if (permissions !== undefined) {
+      updateData.permissions = sanitizePermissions(permissions);
+    }
+
     const updated = await User.findByIdAndUpdate(
       req.params.id,
-      { name, username, phone, employeeId, role, department, isActive, permissions },
+      updateData,
       { new: true, runValidators: true }
     ).select('-googleId');
 
@@ -188,7 +204,6 @@ export const bulkAddUsers = async (req: Request, res: Response): Promise<void> =
       const employeeId = getCellValue(row, ['employeeid', 'employee', 'staffid', 'userid']);
       const department = getCellValue(row, ['department', 'dept']);
       const status = getCellValue(row, ['status', 'active', 'isactive']);
-      const permissions = parsePermissions(getCellValue(row, ['permissions', 'permission']));
 
       if (!email || !name || !roleValue) {
         results.errors.push(`Row skipped: ${JSON.stringify(row)}`);
@@ -231,7 +246,7 @@ export const bulkAddUsers = async (req: Request, res: Response): Promise<void> =
         role,
         department,
         isActive: parseStatus(status),
-        permissions,
+        permissions: getDefaultPermissionsForRole(role),
       });
       results.added++;
     }

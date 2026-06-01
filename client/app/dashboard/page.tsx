@@ -10,8 +10,7 @@ import CalendarWidget from '../../components/CalendarWidget';
 import MeetingTable from '../../components/MeetingTable';
 import ActionCard from '../../components/ActionCard';
 import ActivityLogWidget from '../../components/ActivityLogWidget';
-import { superAdminStats, adminStats, userStats } from '../../data/dashboardData';
-import { ShieldCheck, Download, Settings, FileText, Bell, Users, Video, CalendarPlus } from 'lucide-react';
+import { ShieldCheck, Download, Settings, FileText, Bell, Video, CalendarPlus } from 'lucide-react';
 
 interface User {
   name?: string;
@@ -19,12 +18,41 @@ interface User {
   [key: string]: any;
 }
 
+interface DashboardStat {
+  id: number;
+  title: string;
+  value: string | number;
+  description?: string;
+}
+
+interface DashboardSummary {
+  stats: DashboardStat[];
+  chartData: { name: string; meetings: number }[];
+  calendarMeetings: { id: string; title: string; date: string; status: string }[];
+  activityLogs: { id: string; action: string; details: string; time: string; type: string }[];
+}
+
+const emptyDashboard: DashboardSummary = {
+  stats: [],
+  chartData: [],
+  calendarMeetings: [],
+  activityLogs: [],
+};
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('accessToken');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isMounted, setIsMounted] = useState(false);
+  const [dashboard, setDashboard] = useState<DashboardSummary>(emptyDashboard);
+  const [isDashboardLoading, setIsDashboardLoading] = useState(true);
+  const [dashboardError, setDashboardError] = useState('');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -55,6 +83,30 @@ export default function DashboardPage() {
     setIsMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (!isMounted) return;
+
+    const loadDashboard = async () => {
+      setIsDashboardLoading(true);
+      setDashboardError('');
+      try {
+        const response = await fetch('http://localhost:5000/api/dashboard/summary', {
+          headers: getAuthHeaders(),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Unable to load dashboard data.');
+        setDashboard(data);
+      } catch (error) {
+        setDashboard(emptyDashboard);
+        setDashboardError(error instanceof Error ? error.message : 'Unable to load dashboard data.');
+      } finally {
+        setIsDashboardLoading(false);
+      }
+    };
+
+    loadDashboard();
+  }, [isMounted]);
+
   const role = currentUser?.role || 'User';
   
   const getGreetingName = () => {
@@ -75,11 +127,29 @@ export default function DashboardPage() {
   };
 
   const renderDashboardContent = () => {
+    if (isDashboardLoading) {
+      return (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="h-36 animate-pulse rounded-xl border border-gray-100 bg-white dark:border-gray-700 dark:bg-gray-800" />
+          ))}
+        </div>
+      );
+    }
+
+    if (dashboardError) {
+      return (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300">
+          {dashboardError}
+        </div>
+      );
+    }
+
     if (isSuperAdmin) {
       return (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-            {superAdminStats.map((stat) => (
+            {dashboard.stats.map((stat) => (
               <DashboardCard key={stat.id} title={stat.title} value={stat.value} description={stat.description} />
             ))}
           </div>
@@ -96,10 +166,10 @@ export default function DashboardPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
             <div className="lg:col-span-2 min-h-[350px]">
-              <DashboardChart />
+              <DashboardChart data={dashboard.chartData} />
             </div>
             <div className="min-h-[350px]">
-              <ActivityLogWidget />
+              <ActivityLogWidget logs={dashboard.activityLogs} />
             </div>
           </div>
           <div className="py-8">
@@ -113,16 +183,16 @@ export default function DashboardPage() {
       return (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {adminStats.map((stat) => (
+            {dashboard.stats.map((stat) => (
               <DashboardCard key={stat.id} title={stat.title} value={stat.value} description={stat.description} />
             ))}
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
             <div className="lg:col-span-2 min-h-[350px]">
-              <DashboardChart />
+              <DashboardChart data={dashboard.chartData} />
             </div>
             <div className="min-h-[350px]">
-              <CalendarWidget />
+              <CalendarWidget meetings={dashboard.calendarMeetings} />
             </div>
           </div>
           <div className="py-8">
@@ -136,7 +206,7 @@ export default function DashboardPage() {
     return (
       <>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {userStats.map((stat) => (
+          {dashboard.stats.map((stat) => (
             <DashboardCard key={stat.id} title={stat.title} value={stat.value} description={stat.description} />
           ))}
         </div>
@@ -153,7 +223,7 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
           <div className="lg:col-span-3 min-h-[350px]">
-            <CalendarWidget />
+            <CalendarWidget meetings={dashboard.calendarMeetings} />
           </div>
         </div>
         <div className="py-8">

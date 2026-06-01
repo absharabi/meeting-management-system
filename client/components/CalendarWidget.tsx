@@ -4,16 +4,24 @@ import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday } from 'date-fns';
 
-export default function CalendarWidget() {
+interface CalendarMeeting {
+  id: string;
+  title: string;
+  date: string;
+  status: string;
+}
+
+interface CalendarWidgetProps {
+  meetings: CalendarMeeting[];
+}
+
+export default function CalendarWidget({ meetings }: CalendarWidgetProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
   
-  // Dummy data for days with meetings
-  const meetingDays = [2, 5, 12, 14, 18, 22, 25, 26];
-
   const nextMonth = () => setCurrentDate(addMonths(currentDate, 1));
   const prevMonth = () => setCurrentDate(subMonths(currentDate, 1));
 
@@ -47,12 +55,17 @@ export default function CalendarWidget() {
         ))}
         
         {daysInMonth.map((day, idx) => {
-          const hasMeeting = meetingDays.includes(day.getDate());
+          const meetingsForDay = meetings.filter((meeting) => {
+            const meetingDate = new Date(meeting.date);
+            return isSameMonth(meetingDate, currentDate) && isSameDay(meetingDate, day);
+          });
+          const hasMeeting = meetingsForDay.length > 0;
           const today = isToday(day);
           
           return (
             <div key={idx} className="p-1 flex justify-center items-center aspect-square">
               <button 
+                title={hasMeeting ? meetingsForDay.map((meeting) => meeting.title).join(', ') : undefined}
                 className={`
                   w-8 h-8 rounded-full flex justify-center items-center text-sm transition-colors
                   ${today ? 'bg-blue-600 text-white font-bold shadow-md' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}
