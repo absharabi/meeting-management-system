@@ -3,7 +3,17 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
 import Sidebar from '../../components/Sidebar';
-import { Bell, BellOff, Calendar, Save, AlertCircle, User, Briefcase } from 'lucide-react';
+import { Bell, BellOff, Calendar, Save, User, Briefcase } from 'lucide-react';
+
+const getAuthHeaders = (includeContentType = false): Record<string, string> => {
+  const token = localStorage.getItem('accessToken');
+  const headers: Record<string, string> = {};
+
+  if (includeContentType) headers['Content-Type'] = 'application/json';
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  return headers;
+};
 
 export default function SettingsPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -24,24 +34,32 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState('');
 
-  // We hardcode the user ID for now since auth is bypassed, but in reality this would be from Auth context
-  const fetchPreferences = async () => {
-    try {
-      const res = await fetch('http://localhost:5000/api/users/me');
-      if (res.ok) {
-        const user = await res.json();
-        setProfile({ name: user.name || '', department: user.department || '', email: user.email || '' });
-        if (user.notificationPreferences) {
-          setPreferences(user.notificationPreferences);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch preferences', error);
-    }
-  };
-
   useEffect(() => {
-    fetchPreferences();
+    let isActive = true;
+
+    const fetchPreferences = async () => {
+      try {
+        const res = await fetch('http://localhost:5000/api/users/me', {
+          headers: getAuthHeaders()
+        });
+        if (res.ok) {
+          const user = await res.json();
+          if (!isActive) return;
+
+          setProfile({ name: user.name || '', department: user.department || '', email: user.email || '' });
+          if (user.notificationPreferences) {
+            setPreferences(user.notificationPreferences);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch preferences', error);
+      }
+    };
+
+    void fetchPreferences();
+    return () => {
+      isActive = false;
+    };
   }, []);
 
   const handleToggle = (key: keyof typeof preferences) => {
@@ -54,10 +72,13 @@ export default function SettingsPage() {
     try {
       const res = await fetch('http://localhost:5000/api/users/me', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(true),
         body: JSON.stringify({ name: profile.name, department: profile.department })
       });
       if (res.ok) {
+        const user = await res.json();
+        localStorage.setItem('user', JSON.stringify(user));
+        window.dispatchEvent(new Event('auth-change'));
         setMessage('Profile updated successfully!');
         setTimeout(() => setMessage(''), 3000);
       } else {
@@ -77,7 +98,7 @@ export default function SettingsPage() {
     try {
       const res = await fetch('http://localhost:5000/api/users/preferences', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(true),
         body: JSON.stringify({ notificationPreferences: preferences })
       });
       

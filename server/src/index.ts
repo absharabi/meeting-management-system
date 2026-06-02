@@ -14,6 +14,7 @@ import reportRoutes from './routes/report.routes';
 import feedbackRoutes from './routes/feedback.routes';
 import actionItemRoutes from './routes/actionItem.routes';
 import uploadRoutes from './routes/upload.routes';
+import meetingAIRoutes from './routes/meetingAI';
 import dashboardRoutes from './routes/dashboard.routes';
 import path from 'path';
 import User, { Role } from './models/User';
@@ -82,6 +83,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/action-items', actionItemRoutes);
 app.use('/api/meetings', uploadRoutes); // Mounts /:id/upload-report
+app.use('/api/meetings', meetingAIRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
 // Serve uploaded files statically

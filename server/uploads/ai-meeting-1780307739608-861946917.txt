@@ -1,0 +1,68 @@
+Date: June 1, 2026
+Meeting: Meeting Management System Weekly Review
+Attendees:
+- Shivani
+- Rahul
+- Priya
+- Arjun
+- Sneha
+
+Shivani: Good morning everyone. Let's review the progress on the Meeting Management System project.
+
+Rahul: The authentication module is complete. Users can register, log in, and reset passwords. I also fixed the session timeout issue reported last week.
+
+Priya: The meeting scheduling page is complete. Users can create, edit, and cancel meetings. Email notifications are also working.
+
+Arjun: The dashboard analytics are partially complete. I have implemented charts for total meetings and attendance statistics, but the activity timeline still needs work.
+
+Sneha: I completed testing for the meeting creation workflow. I found two bugs related to recurring meetings and timezone conversion.
+
+Shivani: Are there any blockers?
+
+Arjun: The chart library documentation is confusing, and I'm spending more time than expected integrating advanced visualizations.
+
+Rahul: I don't have any blockers, but we should improve API response caching before deployment.
+
+Priya: We also need to improve mobile responsiveness for the scheduling page.
+
+Shivani: Let's discuss the new AI Meeting Summary feature.
+
+Rahul: I researched local AI options. We can use Ollama with the Llama 3.2 model for summarization and Faster Whisper for audio transcription.
+
+Arjun: Will that require any paid APIs?
+
+Rahul: No. Everything can run locally on the development machine.
+
+Priya: That sounds good. We should first support transcript uploads before adding audio and video processing.
+
+Shivani: Agreed. Let's implement the feature in phases.
+
+Rahul: Phase one will support transcript upload and AI-generated summaries.
+
+Arjun: Phase two will add audio transcription using Faster Whisper.
+
+Priya: Phase three will support video uploads by extracting audio with FFmpeg.
+
+Sneha: I'll prepare test cases for transcript uploads and summary generation.
+
+Shivani: What are the deadlines?
+
+Rahul: Transcript summarization should be completed by June 5.
+
+Arjun: Audio transcription should be completed by June 8.
+
+Priya: Video processing support should be completed by June 12.
+
+Sneha: Testing and bug fixing should be completed by June 14.
+
+Shivani: Any risks we should note?
+
+Rahul: Whisper model downloads may take time on slower internet connections.
+
+Arjun: Performance may be an issue when processing large video files.
+
+Priya: We should also ensure uploaded files are validated properly for security.
+
+Shivani: Good points. Let's track those risks and review progress next week.
+
+Meeting concluded at 11:15 AM.

@@ -4,13 +4,13 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { closestCenter, DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { ArrowLeft, Download, Plus, RefreshCw, Save, ShieldCheck } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, Lock, Plus, RefreshCw, Save, ShieldCheck, Sparkles } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import "react-quill-new/dist/quill.snow.css";
 import AgendaItemForm from "@/components/mom/AgendaItemForm";
 import SummaryTable from "@/components/mom/SummaryTable";
-import { MemberPresent, MomAgendaItem, MomCoverDetails, MomMeeting, MomStatus } from "@/components/mom/types";
+import { MemberPresent, MomAgendaItem, MomApprovalStatus, MomCoverDetails, MomMeeting, MomStatus } from "@/components/mom/types";
 
 const API_BASE = "http://localhost:5000/api/meetings";
 const inputClass = "w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-800 dark:bg-gray-950 dark:text-white";
@@ -52,6 +52,7 @@ export default function MomPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const [meeting, setMeeting] = useState<MomMeeting | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [membersPresent, setMembersPresent] = useState<MemberPresent[]>([]);
   const [agendaItems, setAgendaItems] = useState<MomAgendaItem[]>([]);
   const [momCoverDetails, setMomCoverDetails] = useState<MomCoverDetails>(defaultCoverDetails());
@@ -102,7 +103,23 @@ export default function MomPage() {
     loadMom();
   }, [loadMom]);
 
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (!storedUser) return;
+    try {
+      setCurrentUser(JSON.parse(storedUser));
+    } catch {
+      setCurrentUser(null);
+    }
+  }, []);
+
   const sortableIds = useMemo(() => agendaItems.map((item, index) => item._id || `agenda-${index}`), [agendaItems]);
+  const approvalStatus = useMemo(() => meeting?.momApprovalStatus || [], [meeting]);
+  const allApproved = approvalStatus.length > 0 && approvalStatus.every((approval) => approval.approved);
+  const pendingApprovals = approvalStatus.filter((approval) => !approval.approved);
+  const isConfirmed = momStatus === "Confirmed";
+  const currentUserId = currentUser?.id || currentUser?._id;
+  const currentUserApproval = approvalStatus.find((approval) => approval.userId === currentUserId);
 
   const previewMeeting = useMemo<MomMeeting | null>(() => {
     if (!meeting) return null;
@@ -110,6 +127,19 @@ export default function MomPage() {
   }, [agendaItems, meeting, membersPresent, momCoverDetails, momStatus]);
 
   const saveMom = async (status: MomStatus = momStatus) => {
+    if (isConfirmed) {
+      setNotice({ message: "This MoM is confirmed and locked. It cannot be changed.", type: "error" });
+      return false;
+    }
+    if ((status === "Confirmed") && !isCoverComplete(momCoverDetails)) {
+      window.alert("Please complete the cover page details before confirming the MoM.");
+      return false;
+    }
+    if (status === "Confirmed" && !allApproved) {
+      window.alert(`Everyone in the meeting must approve before confirmation. Pending: ${pendingApprovals.map((approval) => approval.name).join(", ") || "No reviewers found"}.`);
+      return false;
+    }
+
     setIsSaving(true);
     try {
       const payload = {
@@ -140,15 +170,28 @@ export default function MomPage() {
       setAgendaItems((data.agendaItems || []).sort((a: MomAgendaItem, b: MomAgendaItem) => a.order - b.order));
       setMomStatus(data.momStatus || status);
       setNotice({ message: status === "Confirmed" ? "MoM confirmed." : "MoM draft saved.", type: "success" });
+      return true;
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : "Unable to save MoM.", type: "error" });
+      return false;
     } finally {
       setIsSaving(false);
     }
   };
 
   const exportPdf = async () => {
-    await saveMom(momStatus);
+    if (!isCoverComplete(momCoverDetails)) {
+      window.alert("Please complete the cover page details before exporting the MoM.");
+      return;
+    }
+    if (!allApproved) {
+      window.alert(`Everyone in the meeting must approve before export. Pending: ${pendingApprovals.map((approval) => approval.name).join(", ") || "No reviewers found"}.`);
+      return;
+    }
+    if (!isConfirmed) {
+      window.alert("Confirm the MoM before exporting. Confirming locks the document.");
+      return;
+    }
     if (!previewMeeting) return;
 
     try {
@@ -160,11 +203,13 @@ export default function MomPage() {
   };
 
   const updateAgendaItem = (index: number, item: MomAgendaItem) => {
+    if (isConfirmed) return;
     setAgendaItems((current) => current.map((currentItem, itemIndex) => itemIndex === index ? item : currentItem));
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    if (isConfirmed) return;
     if (!over || active.id === over.id) return;
 
     setAgendaItems((current) => {
@@ -175,6 +220,7 @@ export default function MomPage() {
   };
 
   const syncAgendaModuleItems = async () => {
+    if (isConfirmed) return;
     try {
       const response = await fetch(`${API_BASE}/${params.id}/agendas`);
       const data = await response.json();
@@ -184,6 +230,40 @@ export default function MomPage() {
       setNotice({ message: "Agenda module items synced into MoM.", type: "success" });
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : "Unable to sync agenda module.", type: "error" });
+    }
+  };
+
+  const openAiFillPage = async () => {
+    if (isConfirmed) {
+      setNotice({ message: "This MoM is confirmed and locked. AI fill is no longer available.", type: "error" });
+      return;
+    }
+    const saved = await saveMom("Draft");
+    if (saved) {
+      router.push(`/meetings/${params.id}/mom/ai`);
+    }
+  };
+
+  const approveMom = async () => {
+    if (isConfirmed) return;
+    try {
+      const token = localStorage.getItem("accessToken");
+      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+      const response = await fetch(`${API_BASE}/${params.id}/mom/approve`, {
+        method: "POST",
+        headers,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Unable to approve MoM.");
+
+      setMeeting(data);
+      setMembersPresent(deriveMembersFromParticipants(data));
+      setMomCoverDetails(mergeCoverDetails(data, data.momCoverDetails));
+      setAgendaItems((data.agendaItems || []).sort((a: MomAgendaItem, b: MomAgendaItem) => a.order - b.order));
+      setMomStatus(data.momStatus || "Draft");
+      setNotice({ message: "Your MoM approval has been recorded.", type: "success" });
+    } catch (error) {
+      setNotice({ message: error instanceof Error ? error.message : "Unable to approve MoM.", type: "error" });
     }
   };
 
@@ -228,13 +308,13 @@ export default function MomPage() {
               <p className="mt-2 text-sm text-blue-100">{new Date(meeting.date).toLocaleDateString()} | {meeting.venue || meeting.link || "Venue not specified"}</p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <button onClick={() => saveMom("Draft")} disabled={isSaving} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-60">
+              <button onClick={() => saveMom("Draft")} disabled={isSaving || isConfirmed} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60">
                 <Save size={16} />
                 Save Draft
               </button>
-              <button onClick={() => saveMom("Confirmed")} disabled={isSaving} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-600 disabled:opacity-60">
+              <button onClick={() => saveMom("Confirmed")} disabled={isSaving || isConfirmed || !allApproved} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60">
                 <ShieldCheck size={16} />
-                Confirm
+                {isConfirmed ? "Confirmed" : "Confirm"}
               </button>
               <button onClick={exportPdf} className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/20">
                 <Download size={16} />
@@ -247,6 +327,13 @@ export default function MomPage() {
         {notice && (
           <div className={`rounded-xl border p-4 text-sm font-semibold ${notice.type === "success" ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-900/20 dark:text-green-300" : "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-300"}`}>
             {notice.message}
+          </div>
+        )}
+
+        {isConfirmed && (
+          <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-900/20 dark:text-emerald-200">
+            <Lock size={18} />
+            This MoM is confirmed and locked. No further edits, agenda changes, AI fills, or approvals can be made.
           </div>
         )}
 
@@ -272,13 +359,13 @@ export default function MomPage() {
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <CoverField label="Meeting Number">
-              <input value={momCoverDetails.meetingNumber} onChange={(event) => setMomCoverDetails((current) => ({ ...current, meetingNumber: event.target.value }))} className={inputClass} placeholder="71st" />
+              <input disabled={isConfirmed} value={momCoverDetails.meetingNumber} onChange={(event) => setMomCoverDetails((current) => ({ ...current, meetingNumber: event.target.value }))} className={inputClass} placeholder="71st" />
             </CoverField>
             <CoverField label="Meeting Body">
-              <input value={momCoverDetails.meetingBody} onChange={(event) => setMomCoverDetails((current) => ({ ...current, meetingBody: event.target.value }))} className={inputClass} placeholder="Board of Governors" />
+              <input disabled={isConfirmed} value={momCoverDetails.meetingBody} onChange={(event) => setMomCoverDetails((current) => ({ ...current, meetingBody: event.target.value }))} className={inputClass} placeholder="Board of Governors" />
             </CoverField>
             <CoverField label="Institute Name">
-              <input value={momCoverDetails.instituteName} onChange={(event) => setMomCoverDetails((current) => ({ ...current, instituteName: event.target.value }))} className={inputClass} placeholder="National Institute of Technology Calicut" />
+              <input disabled={isConfirmed} value={momCoverDetails.instituteName} onChange={(event) => setMomCoverDetails((current) => ({ ...current, instituteName: event.target.value }))} className={inputClass} placeholder="National Institute of Technology Calicut" />
             </CoverField>
             <CoverField label="Date Line">
               <input readOnly value={momCoverDetails.dateLine} className={`${inputClass} cursor-not-allowed bg-gray-50 dark:bg-gray-900`} />
@@ -289,6 +376,58 @@ export default function MomPage() {
               </CoverField>
             </div>
           </div>
+        </section>
+
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="font-bold text-gray-900 dark:text-white">MoM Approvals</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Everyone in the meeting must approve before the MoM can be confirmed and exported.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={approveMom}
+              disabled={isConfirmed || !currentUserId || currentUserApproval?.approved}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-500/20 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <CheckCircle2 size={16} />
+              {currentUserApproval?.approved ? "Approved" : "Approve MoM"}
+            </button>
+          </div>
+          <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-950 dark:text-gray-400">
+                <tr>
+                  <th className="px-4 py-3">Name</th>
+                  <th className="px-4 py-3">Department</th>
+                  <th className="px-4 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {approvalStatus.map((approval) => (
+                  <tr key={approval.userId} className="bg-white dark:bg-gray-900">
+                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{approval.name || "-"}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{approval.department || "-"}</td>
+                    <td className="px-4 py-3">
+                      <ApprovalBadge approval={approval} />
+                    </td>
+                  </tr>
+                ))}
+                {approvalStatus.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">No meeting members found for approval.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {!allApproved && (
+            <p className="mt-3 text-sm font-medium text-amber-700 dark:text-amber-300">
+              Pending: {pendingApprovals.map((approval) => approval.name).join(", ") || "No reviewers found"}.
+            </p>
+          )}
         </section>
 
         <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -331,13 +470,17 @@ export default function MomPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <button onClick={syncAgendaModuleItems} className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50 dark:border-blue-900/60 dark:bg-gray-900 dark:text-blue-300 dark:hover:bg-blue-900/20">
+            <button onClick={syncAgendaModuleItems} disabled={isConfirmed} className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-900/60 dark:bg-gray-900 dark:text-blue-300 dark:hover:bg-blue-900/20">
               <RefreshCw size={16} />
               Sync Agenda Module
             </button>
-            <button onClick={() => setAgendaItems((current) => [...current, emptyAgendaItem(current.length)])} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700">
+            <button onClick={() => setAgendaItems((current) => [...current, emptyAgendaItem(current.length)])} disabled={isConfirmed} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
               <Plus size={16} />
               Add Extra MoM Item
+            </button>
+            <button onClick={openAiFillPage} disabled={isSaving || isConfirmed} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-500/20 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
+              <Sparkles size={16} />
+              Fill Remaining Boxes with AI
             </button>
           </div>
         </div>
@@ -352,6 +495,7 @@ export default function MomPage() {
                   index={index}
                   onChange={(nextItem) => updateAgendaItem(index, nextItem)}
                   onRemove={() => setAgendaItems((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                  disabled={isConfirmed}
                 />
               ))}
             </div>
@@ -379,6 +523,22 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <dt className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</dt>
       <dd className="mt-1 font-medium text-gray-900 dark:text-white">{value}</dd>
     </div>
+  );
+}
+
+function ApprovalBadge({ approval }: { approval: MomApprovalStatus }) {
+  if (approval.approved) {
+    return (
+      <span className="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+        Approved
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+      Pending
+    </span>
   );
 }
 
@@ -418,6 +578,16 @@ function mergeCoverDetails(meeting: MomMeeting, details?: Partial<MomCoverDetail
     dateLine: derived.dateLine,
     venueLine: derived.venueLine,
   };
+}
+
+function isCoverComplete(details: MomCoverDetails) {
+  return Boolean(
+    details.meetingNumber?.trim() &&
+    details.meetingBody?.trim() &&
+    details.instituteName?.trim() &&
+    details.dateLine?.trim() &&
+    details.venueLine?.trim()
+  );
 }
 
 function mergeAgendaModuleItems(existingItems: MomAgendaItem[], agendaModuleItems: MeetingAgenda[]) {
