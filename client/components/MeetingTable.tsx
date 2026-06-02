@@ -19,6 +19,7 @@ interface Meeting {
   participants: User[];
   organizerId?: any;
   attendance?: any[];
+  visibility?: string;
 }
 interface MeetingTableProps {
   searchQuery?: string;
@@ -41,11 +42,12 @@ export default function MeetingTable({
   const [attendedIds, setAttendedIds] = useState<Set<string>>(new Set());
   const [isSubmittingAttendance, setIsSubmittingAttendance] = useState(false);
 
-  const fetchMeetings = async () => {
+  const fetchMeetings = async (query = '') => {
     try {
       setIsLoading(true);
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:5000/api/meetings', {
+      const url = query ? `http://localhost:5000/api/meetings?keyword=${encodeURIComponent(query)}` : 'http://localhost:5000/api/meetings';
+      const res = await fetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.ok) {
@@ -60,7 +62,14 @@ export default function MeetingTable({
   };
 
   useEffect(() => {
-    fetchMeetings();
+    const timer = setTimeout(() => {
+      fetchMeetings(searchQuery);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
     // Default to 'all' if admin, else 'created'
     if (currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin') {
       setActiveTab('all');
@@ -101,7 +110,7 @@ export default function MeetingTable({
       });
       if (res.ok) {
         setOpenDropdownId(null);
-        fetchMeetings(); // Refresh to show updated status
+        fetchMeetings(searchQuery); // Refresh to show updated status
         toast.success(`RSVP updated to ${status}`);
       } else {
         const err = await res.json();
@@ -114,9 +123,8 @@ export default function MeetingTable({
   };
 
   const filteredMeetings = meetings.filter(meeting => {
-    const matchesSearch = meeting.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'All' || meeting.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    return matchesStatus;
   });
 
   const displayedMeetings = filteredMeetings.filter(meeting => {
@@ -170,7 +178,7 @@ export default function MeetingTable({
       });
       if (res.ok) {
         toast.success('Attendance marked successfully!');
-        fetchMeetings();
+        fetchMeetings(searchQuery);
         setAttendanceModalMeeting(null);
       } else {
         const err = await res.json();
@@ -252,7 +260,7 @@ export default function MeetingTable({
               </select>
             )}
             <button
-              onClick={fetchMeetings}
+              onClick={() => fetchMeetings(searchQuery)}
               className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 px-4 py-2 border border-blue-200 dark:border-blue-900/50 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all"
             >
               Refresh

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Navbar from '../../components/Navbar';
 import Sidebar from '../../components/Sidebar';
 import { Download, FileText, Calendar as CalendarIcon, BarChart3, Search } from 'lucide-react';
@@ -21,6 +21,77 @@ export default function ReportsPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'date' | 'year' | 'meeting'>('date');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Helper to strip HTML tags from rich text
+  const stripHtml = (html: string) => {
+    if (!html) return '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    return tmp.textContent || tmp.innerText || '';
+  };
+  
+  // Helper to get Base64 of Logo
+  const getLogoBase64 = async (url: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => resolve(''); // Silent fail, returns empty
+      img.src = url;
+    });
+  };
+
+  // Helper to generate Donut Chart
+  const generateDonutChartBase64 = (attended: number, total: number): string => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 160;
+    canvas.height = 160;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return '';
+
+    const missed = total - attended;
+    const attendedAngle = total === 0 ? 0 : (attended / total) * 2 * Math.PI;
+
+    ctx.clearRect(0, 0, 160, 160);
+
+    // Background (missed) - Red
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.moveTo(80, 80);
+    ctx.arc(80, 80, 70, 0, 2 * Math.PI);
+    ctx.fill();
+
+    // Attended - Green
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.moveTo(80, 80);
+    ctx.arc(80, 80, 70, -0.5 * Math.PI, attendedAngle - 0.5 * Math.PI);
+    ctx.fill();
+
+    // Donut hole
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(80, 80, 45, 0, 2 * Math.PI);
+    ctx.fill();
+
+    // Text inside donut
+    ctx.fillStyle = '#1f2937';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const percentage = total === 0 ? 0 : Math.round((attended / total) * 100);
+    ctx.fillText(`${percentage}%`, 80, 80);
+
+    return canvas.toDataURL('image/png');
+  };
   
   // Date-wise state
   const [startDate, setStartDate] = useState('');
@@ -35,6 +106,54 @@ export default function ReportsPage() {
   // Meeting-wise state
   const [meetingIdInput, setMeetingIdInput] = useState('');
   const [meetingReport, setMeetingReport] = useState<any>(null);
+  
+  // Autocomplete State
+  const [meetingSuggestions, setMeetingSuggestions] = useState<any[]>([]);
+  const [isSearchingSuggestions, setIsSearchingSuggestions] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestionRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (suggestionRef.current && !suggestionRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Debounced search for suggestions
+  useEffect(() => {
+    if (!meetingIdInput.trim()) {
+      setMeetingSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingSuggestions(true);
+      try {
+        const token = localStorage.getItem('accessToken');
+        const res = await fetch(`http://localhost:5000/api/meetings?keyword=${meetingIdInput}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          // Adjust data based on API response structure. The controller returns { meetings: ... } or just array.
+          setMeetingSuggestions(data.meetings || data || []);
+          setShowSuggestions(true);
+        }
+      } catch (err) {
+        console.error('Failed to fetch suggestions:', err);
+      } finally {
+        setIsSearchingSuggestions(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [meetingIdInput]);
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -51,7 +170,8 @@ export default function ReportsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:5000/api/reports/date-wise?startDate=${startDate}&endDate=${endDate}`, {
+      const url = `http://localhost:5000/api/reports/date-wise?startDate=${startDate}&endDate=${endDate}${searchQuery ? `&keyword=${encodeURIComponent(searchQuery)}` : ''}`;
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to fetch or unauthorized');
@@ -82,15 +202,15 @@ export default function ReportsPage() {
     }
   };
 
-  const fetchMeetingReport = async () => {
-    if (!meetingIdInput) {
-      toast.error('Please enter a Meeting ID');
+  const fetchMeetingReport = async (identifier = meetingIdInput) => {
+    if (!identifier) {
+      toast.error('Please enter a Meeting Name or ID');
       return;
     }
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:5000/api/reports/meeting/${meetingIdInput.trim()}`, {
+      const res = await fetch(`http://localhost:5000/api/reports/meeting/${encodeURIComponent(identifier.trim())}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) {
@@ -100,6 +220,7 @@ export default function ReportsPage() {
       const data = await res.json();
       setMeetingReport(data);
       toast.success('Meeting details loaded');
+      setShowSuggestions(false); // Hide suggestions after selection
     } catch (err: any) {
       toast.error(err.message || 'Error fetching meeting report');
     } finally {
@@ -113,7 +234,7 @@ export default function ReportsPage() {
     }
   }, [activeTab, selectedYear]);
 
-  const exportPDF = () => {
+  const exportPDF = async () => {
     const doc = new jsPDF();
     
     if (activeTab === 'date') {
@@ -145,20 +266,59 @@ export default function ReportsPage() {
       doc.save(`Report_${activeTab}_${new Date().getTime()}.pdf`);
 
     } else if (activeTab === 'meeting' && meetingReport) {
-      const { meeting, metrics, agendas } = meetingReport;
+      const { meeting, metrics, agendas, actionItems } = meetingReport;
       
-      // 1. Header
-      doc.setFontSize(24);
-      doc.setTextColor(31, 41, 55);
-      doc.text('Official Meeting Report', 14, 22);
+      const themePrimary: [number, number, number] = [15, 23, 42]; // Navy Blue
+      const themeSecondary: [number, number, number] = [71, 85, 105]; // Slate Gray
       
-      doc.setFontSize(14);
-      doc.setTextColor(37, 99, 235);
-      doc.text(meeting.title, 14, 32);
+      // 1. Header Area
+      doc.setFillColor(themePrimary[0], themePrimary[1], themePrimary[2]);
+      doc.rect(0, 0, 210, 30, 'F');
+      
+      const logoBase64 = await getLogoBase64('/logo.png');
+      if (logoBase64) {
+        // Adjust width/height preserving aspect ratio. 
+        // 20x20 is a good square fit.
+        doc.addImage(logoBase64, 'PNG', 14, 5, 20, 20);
+        doc.setFontSize(22);
+        doc.setTextColor(255, 255, 255);
+        doc.text('OFFICIAL MEETING REPORT', 38, 16);
+        doc.setFontSize(10);
+        doc.setTextColor(200, 200, 200);
+        doc.text(`Generated on: ${new Date().toLocaleString()}`, 38, 24);
+      } else {
+        doc.setFontSize(22);
+        doc.setTextColor(255, 255, 255);
+        doc.text('OFFICIAL MEETING REPORT', 14, 16);
+        doc.setFontSize(10);
+        doc.setTextColor(200, 200, 200);
+        doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 24);
+      }
 
-      // 2. Overview Table
+      // 2. Meeting Title
+      doc.setFontSize(16);
+      doc.setTextColor(themePrimary[0], themePrimary[1], themePrimary[2]);
+      doc.text(meeting.title, 14, 40);
+      if (meeting.description) {
+        doc.setFontSize(10);
+        doc.setTextColor(themeSecondary[0], themeSecondary[1], themeSecondary[2]);
+        doc.text(stripHtml(meeting.description), 14, 47, { maxWidth: 180 });
+      }
+
+      // 3. Overview Table & Donut Chart
+      let startY = meeting.description ? 55 : 48;
+      
+      // Draw Donut Chart
+      const chartBase64 = generateDonutChartBase64(metrics.totalAttended, metrics.totalParticipants);
+      if (chartBase64) {
+        doc.addImage(chartBase64, 'PNG', 150, startY, 40, 40);
+        doc.setFontSize(10);
+        doc.setTextColor(themeSecondary[0], themeSecondary[1], themeSecondary[2]);
+        doc.text('Attendance Rate', 155, startY + 45);
+      }
+
       autoTable(doc, {
-        startY: 40,
+        startY: startY,
         head: [['Meeting Details', '']],
         body: [
           ['Date', new Date(meeting.date).toLocaleDateString()],
@@ -168,17 +328,17 @@ export default function ReportsPage() {
           ['Organizer', meeting.organizerId?.name || 'Unknown'],
           ['Status', meeting.status]
         ],
-        theme: 'grid',
-        headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55] },
-        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 } },
-        margin: { bottom: 10 }
+        theme: 'striped',
+        headStyles: { fillColor: themePrimary, textColor: 255 },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 40 }, 1: { cellWidth: 80 } }, // Constrain width so it doesn't overlap chart
+        margin: { bottom: 10, right: 70 } // Ensure it leaves space for the chart
       });
       
-      // 3. Participants & Attendance Status
-      const finalY1 = (doc as any).lastAutoTable.finalY + 10;
+      // 4. Participants & Attendance Status
+      let finalY = (doc as any).lastAutoTable.finalY + 10;
       doc.setFontSize(12);
-      doc.setTextColor(31, 41, 55);
-      doc.text(`Participants (${metrics.totalAttended} / ${metrics.totalParticipants} Attended)`, 14, finalY1);
+      doc.setTextColor(themePrimary[0], themePrimary[1], themePrimary[2]);
+      doc.text(`Participants (${metrics.totalAttended} / ${metrics.totalParticipants} Attended)`, 14, finalY);
       
       const attendedIds = new Set(meeting.attendance.map((u: any) => u._id));
       const participantRows = meeting.participants.map((p: any, i: number) => {
@@ -188,15 +348,16 @@ export default function ReportsPage() {
       });
 
       autoTable(doc, {
-        startY: finalY1 + 5,
+        startY: finalY + 5,
         head: [['#', 'Name', 'Email', 'RSVP', 'Attendance']],
         body: participantRows.length > 0 ? participantRows : [['-', 'No participants', '-', '-', '-']],
-        headStyles: { fillColor: [16, 185, 129], textColor: 255 }, 
+        theme: 'striped',
+        headStyles: { fillColor: themeSecondary, textColor: 255 }, 
       });
 
-      // 4. Agendas
-      const finalY2 = (doc as any).lastAutoTable.finalY + 15;
-      doc.text('Agenda / Topics Discussed', 14, finalY2);
+      // 5. Agendas
+      finalY = (doc as any).lastAutoTable.finalY + 15;
+      doc.text('Agenda / Topics Scheduled', 14, finalY);
       
       const agendaRows = agendas.map((a: any, i: number) => [
         i + 1,
@@ -205,78 +366,89 @@ export default function ReportsPage() {
         a.status
       ]);
       autoTable(doc, {
-        startY: finalY2 + 5,
+        startY: finalY + 5,
         head: [['#', 'Topic', 'Duration', 'Status']],
         body: agendaRows.length > 0 ? agendaRows : [['-', 'No agenda items', '-', '-']],
-        headStyles: { fillColor: [99, 102, 241], textColor: 255 },
+        theme: 'striped',
+        headStyles: { fillColor: themeSecondary, textColor: 255 },
       });
 
-      // 5. Discussion Summary & Notes
-      let currentY = (doc as any).lastAutoTable.finalY + 15;
-      if (currentY > 240) { doc.addPage(); currentY = 20; }
+      // 6. Discussion Summary & Notes (From MoM)
+      finalY = (doc as any).lastAutoTable.finalY + 15;
+      if (finalY > 240) { doc.addPage(); finalY = 20; }
       
-      doc.text('Discussion Summary & Notes', 14, currentY);
-      doc.setFontSize(10);
-      doc.setTextColor(107, 114, 128);
-      doc.text('(Document actual discussion notes here)', 14, currentY + 7);
+      doc.text('Discussion Notes', 14, finalY);
+      const discussionRows = (meeting.agendaItems || [])
+        .filter((item: any) => item.backgroundNote && stripHtml(item.backgroundNote).trim() !== '')
+        .map((item: any) => [item.subject || `Item ${item.itemNumber}`, stripHtml(item.backgroundNote)]);
+        
+      autoTable(doc, {
+        startY: finalY + 5,
+        head: [['Subject', 'Notes']],
+        body: discussionRows.length > 0 ? discussionRows : [['No formal discussion notes recorded.', '']],
+        theme: 'striped',
+        headStyles: { fillColor: themeSecondary, textColor: 255 },
+        columnStyles: { 0: { cellWidth: 50 } }
+      });
+
+      // 7. Decisions Taken (From MoM)
+      finalY = (doc as any).lastAutoTable.finalY + 15;
+      if (finalY > 240) { doc.addPage(); finalY = 20; }
+      doc.text('Decisions Taken', 14, finalY);
+      
+      const decisionRows = (meeting.agendaItems || [])
+        .filter((item: any) => item.decision && stripHtml(item.decision).trim() !== '')
+        .map((item: any) => [item.subject || `Item ${item.itemNumber}`, stripHtml(item.decision)]);
+
+      autoTable(doc, {
+        startY: finalY + 5,
+        head: [['Subject', 'Decision']],
+        body: decisionRows.length > 0 ? decisionRows : [['No formal decisions recorded.', '']],
+        theme: 'striped',
+        headStyles: { fillColor: themeSecondary, textColor: 255 },
+        columnStyles: { 0: { cellWidth: 50 } }
+      });
+
+      // 8. Action Items / Tasks
+      finalY = (doc as any).lastAutoTable.finalY + 15;
+      if (finalY > 230) { doc.addPage(); finalY = 20; }
+      doc.text('Action Items & Tasks', 14, finalY);
+      
+      const taskRows = (actionItems || []).map((task: any) => [
+        task.title,
+        task.assigneeId?.name || 'Unassigned',
+        task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'N/A',
+        task.status
+      ]);
       
       autoTable(doc, {
-        startY: currentY + 10,
-        body: [['\n\n\n\n']], // Placeholder box
-        theme: 'grid',
-        styles: { minCellHeight: 40 }
-      });
-
-      // 6. Decisions Taken
-      currentY = (doc as any).lastAutoTable.finalY + 15;
-      if (currentY > 240) { doc.addPage(); currentY = 20; }
-      doc.setFontSize(12);
-      doc.setTextColor(31, 41, 55);
-      doc.text('Decisions Taken', 14, currentY);
-      autoTable(doc, {
-        startY: currentY + 5,
-        head: [['#', 'Decision']],
-        body: [['1', ''], ['2', ''], ['3', '']],
-        theme: 'grid',
-        headStyles: { fillColor: [245, 158, 11], textColor: 255 },
-      });
-
-      // 7. Action Items / Tasks
-      currentY = (doc as any).lastAutoTable.finalY + 15;
-      if (currentY > 230) { doc.addPage(); currentY = 20; }
-      doc.text('Action Items & Tasks', 14, currentY);
-      autoTable(doc, {
-        startY: currentY + 5,
+        startY: finalY + 5,
         head: [['Task Description', 'Assigned To', 'Deadline', 'Status']],
-        body: [['', '', '', ''], ['', '', '', '']],
-        theme: 'grid',
-        headStyles: { fillColor: [239, 68, 68], textColor: 255 },
+        body: taskRows.length > 0 ? taskRows : [['No action items assigned.', '-', '-', '-']],
+        theme: 'striped',
+        headStyles: { fillColor: themeSecondary, textColor: 255 },
       });
-
-      // 8. Attachments & Next Meeting
-      currentY = (doc as any).lastAutoTable.finalY + 15;
-      if (currentY > 250) { doc.addPage(); currentY = 20; }
-      
-      doc.setFontSize(10);
-      doc.setTextColor(31, 41, 55);
-      doc.text(`Attachments: ${meeting.offlineReportFileUrl ? 'Offline report attached.' : 'None'}`, 14, currentY);
-      doc.text('Next Meeting Date: _______________________', 14, currentY + 8);
 
       // 9. Signatures
-      currentY = currentY + 30;
-      if (currentY > 270) { doc.addPage(); currentY = 40; }
+      finalY = (doc as any).lastAutoTable.finalY + 30;
+      if (finalY > 270) { doc.addPage(); finalY = 40; }
       
-      doc.line(14, currentY, 74, currentY);
-      doc.line(130, currentY, 190, currentY);
-      doc.text('Organizer Signature', 14, currentY + 6);
-      doc.text('Approver Signature', 130, currentY + 6);
+      doc.setDrawColor(themeSecondary[0], themeSecondary[1], themeSecondary[2]);
+      doc.line(14, finalY, 74, finalY);
+      doc.line(130, finalY, 190, finalY);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(themeSecondary[0], themeSecondary[1], themeSecondary[2]);
+      doc.text('Organizer Signature', 14, finalY + 6);
+      doc.text('Approver Signature', 130, finalY + 6);
 
       doc.save(`Report_${meeting.title.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`);
     }
   };
 
   const exportExcel = () => {
-    let ws: XLSX.WorkSheet;
+    const wb = XLSX.utils.book_new();
+    
     if (activeTab === 'date') {
       const data = dateReports.map(m => ({
         Date: new Date(m.date).toLocaleDateString(),
@@ -285,13 +457,64 @@ export default function ReportsPage() {
         Status: m.status,
         Organizer: m.organizerId?.name || 'N/A'
       }));
-      ws = XLSX.utils.json_to_sheet(data);
+      const ws = XLSX.utils.json_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws, "Report");
+      XLSX.writeFile(wb, `report_${activeTab}.xlsx`);
+      
+    } else if (activeTab === 'meeting' && meetingReport) {
+      const { meeting, metrics, actionItems } = meetingReport;
+      
+      // 1. Overview Sheet
+      const overviewData = [{
+        Title: meeting.title,
+        Date: new Date(meeting.date).toLocaleDateString(),
+        Time: `${meeting.startTime} - ${meeting.endTime}`,
+        Type: meeting.meetingType,
+        Mode: meeting.mode,
+        Organizer: meeting.organizerId?.name || 'Unknown',
+        Status: meeting.status,
+        "Attendance Rate": `${metrics.totalAttended} / ${metrics.totalParticipants} Attended`
+      }];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(overviewData), "Overview");
+
+      // 2. Participants Sheet
+      const attendedIds = new Set(meeting.attendance.map((u: any) => u._id));
+      const participantsData = meeting.participants.map((p: any) => ({
+        Name: p.user?.name || 'Unknown',
+        Email: p.user?.email || 'N/A',
+        RSVP: p.status,
+        Attendance: attendedIds.has(p.user?._id) ? 'Present' : 'Absent'
+      }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(participantsData), "Participants");
+
+      // 3. Action Items Sheet
+      const tasksData = (actionItems || []).map((task: any) => ({
+        Task: task.title,
+        "Assigned To": task.assigneeId?.name || 'Unassigned',
+        Deadline: task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'N/A',
+        Status: task.status
+      }));
+      if (tasksData.length > 0) {
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(tasksData), "Action Items");
+      }
+
+      // 4. Notes & Decisions Sheet
+      const notesData = (meeting.agendaItems || []).map((item: any) => ({
+        Subject: item.subject || `Item ${item.itemNumber}`,
+        Notes: stripHtml(item.backgroundNote),
+        Decision: stripHtml(item.decision)
+      }));
+      if (notesData.length > 0) {
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(notesData), "Notes & Decisions");
+      }
+
+      XLSX.writeFile(wb, `${meeting.title.replace(/\s+/g, '_')}_Report.xlsx`);
+      
     } else {
-      ws = XLSX.utils.json_to_sheet([{ message: 'Excel export for this tab coming soon' }]);
+      const ws = XLSX.utils.json_to_sheet([{ message: 'Excel export for this tab coming soon' }]);
+      XLSX.utils.book_append_sheet(wb, ws, "Report");
+      XLSX.writeFile(wb, `report_${activeTab}.xlsx`);
     }
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Report");
-    XLSX.writeFile(wb, `report_${activeTab}.xlsx`);
   };
 
   return (
@@ -299,7 +522,7 @@ export default function ReportsPage() {
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} userRole={currentUser?.role} />
       
       <div className="flex-1 flex flex-col min-w-0">
-        <Navbar onMenuClick={() => setIsSidebarOpen(true)} searchQuery="" onSearchChange={() => {}} />
+        <Navbar onMenuClick={() => setIsSidebarOpen(true)} searchQuery={searchQuery} onSearchChange={setSearchQuery} />
         
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
           <div className="max-w-6xl mx-auto space-y-6">
@@ -309,12 +532,17 @@ export default function ReportsPage() {
                 <p className="text-gray-500 mt-1">Generate and export meeting data.</p>
               </div>
               <div className="flex gap-2">
-                <button onClick={exportPDF} className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 font-medium transition-colors">
-                  <FileText size={18} /> PDF
-                </button>
-                <button onClick={exportExcel} className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 font-medium transition-colors">
-                  <Download size={18} /> Excel
-                </button>
+                {((activeTab === 'date' && dateReports.length > 0) || 
+                  (activeTab === 'meeting' && meetingReport)) && (
+                  <>
+                    <button onClick={exportPDF} className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 font-medium transition-colors">
+                      <FileText size={18} /> PDF
+                    </button>
+                    <button onClick={exportExcel} className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 font-medium transition-colors">
+                      <Download size={18} /> Excel
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -421,12 +649,47 @@ export default function ReportsPage() {
 
               {activeTab === 'meeting' && (
                 <div className="space-y-6">
-                  <div className="flex gap-4 items-end max-w-lg">
-                    <div className="flex-1">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Meeting ID</label>
-                      <input type="text" placeholder="Enter MongoDB ObjectId" value={meetingIdInput} onChange={(e) => setMeetingIdInput(e.target.value)} className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2 font-mono text-sm" />
+                  <div className="flex gap-4 items-end max-w-lg relative" ref={suggestionRef}>
+                    <div className="flex-1 relative">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Meeting Name</label>
+                      <input 
+                        type="text" 
+                        placeholder="Enter Meeting Name..." 
+                        value={meetingIdInput} 
+                        onChange={(e) => setMeetingIdInput(e.target.value)}
+                        onFocus={() => { if (meetingSuggestions.length > 0) setShowSuggestions(true); }}
+                        className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                      />
+                      
+                      {/* Autocomplete Dropdown */}
+                      {showSuggestions && meetingIdInput && (
+                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden max-h-60 overflow-y-auto">
+                          {isSearchingSuggestions ? (
+                            <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">Searching...</div>
+                          ) : meetingSuggestions.length > 0 ? (
+                            <ul className="py-1">
+                              {meetingSuggestions.map((suggestion) => (
+                                <li 
+                                  key={suggestion._id}
+                                  onClick={() => {
+                                    setMeetingIdInput(suggestion.title);
+                                    setShowSuggestions(false);
+                                    fetchMeetingReport(suggestion.title);
+                                  }}
+                                  className="px-4 py-2 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer flex flex-col transition-colors"
+                                >
+                                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{suggestion.title}</span>
+                                  <span className="text-xs text-gray-500">{new Date(suggestion.date).toLocaleDateString()} &middot; {suggestion.meetingType}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">No matching meetings found</div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <button onClick={fetchMeetingReport} disabled={loading} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
+                    <button onClick={() => fetchMeetingReport(meetingIdInput)} disabled={loading} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
                       {loading ? 'Searching...' : 'Search'}
                     </button>
                   </div>
