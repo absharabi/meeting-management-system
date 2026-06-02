@@ -12,6 +12,8 @@ export default function MeetingsPage() {
 
   const [currentUser, setCurrentUser] = useState<any>(null);
 
+  const [stats, setStats] = useState({ total: 0, completed: 0, upcoming: 0, avgParticipants: 0 });
+
   React.useEffect(() => {
     try {
       const storedUser = localStorage.getItem('user');
@@ -21,6 +23,39 @@ export default function MeetingsPage() {
     } catch (e) {
       console.error('Failed to parse user', e);
     }
+  }, []);
+
+  React.useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const token = localStorage.getItem('accessToken');
+        const res = await fetch('http://localhost:5000/api/meetings', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (res.ok) {
+          const data = await res.json();
+          let completed = 0;
+          let upcoming = 0;
+          let participantsCount = 0;
+          data.forEach((m: any) => {
+            if (m.status === 'Completed') completed++;
+            if (m.status === 'Scheduled' || m.status === 'Ongoing') upcoming++;
+            if (m.participants) participantsCount += m.participants.length;
+          });
+          const avg = data.length > 0 ? (participantsCount / data.length).toFixed(1) : 0;
+          
+          setStats({
+            total: data.length,
+            completed,
+            upcoming,
+            avgParticipants: Number(avg)
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch meetings for stats', error);
+      }
+    };
+    fetchStats();
   }, []);
 
   return (
@@ -56,7 +91,7 @@ export default function MeetingsPage() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Total Meetings</p>
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">124</h3>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</h3>
                 </div>
               </div>
               
@@ -66,7 +101,7 @@ export default function MeetingsPage() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Completed</p>
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">89</h3>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{stats.completed}</h3>
                 </div>
               </div>
 
@@ -76,7 +111,7 @@ export default function MeetingsPage() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Upcoming</p>
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">35</h3>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{stats.upcoming}</h3>
                 </div>
               </div>
 
@@ -86,7 +121,7 @@ export default function MeetingsPage() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Avg Participants</p>
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">8.5</h3>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{stats.avgParticipants}</h3>
                 </div>
               </div>
             </div>

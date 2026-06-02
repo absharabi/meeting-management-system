@@ -29,3 +29,8 @@
     opacity: 1;
   }
 }
+
+/* Force hide the Next.js development indicator */
+nextjs-portal {
+  display: none !important;
+}

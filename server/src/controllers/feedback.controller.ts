@@ -32,7 +32,7 @@ export const submitFeedback = async (req: Request, res: Response): Promise<void>
 
 export const getMeetingFeedback = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { meetingId } = req.params;
+    const meetingId = req.params.meetingId as string;
 
     if (!mongoose.Types.ObjectId.isValid(meetingId)) {
       res.status(400).json({ message: 'Invalid meeting ID' });

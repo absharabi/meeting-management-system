@@ -65,11 +65,11 @@ const UserSchema = new Schema<IUser>(
   { timestamps: true }
 );
 
-UserSchema.pre('validate', function (next) {
+UserSchema.pre('validate', function (next: any) {
   if (this.isNew && (!this.permissions || this.permissions.length === 0)) {
     this.permissions = getDefaultPermissionsForRole(this.role);
   }
-  next();
+  if (typeof next === 'function') next();
 });
 
 export default mongoose.model<IUser>('User', UserSchema);

@@ -18,7 +18,6 @@ export default function LiveNotesPad({ meetingId, initialContent = '', currentUs
   const [content, setContent] = useState(initialContent);
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef<Socket | null>(null);
-  const quillRef = useRef<any>(null);
 
   useEffect(() => {
     // Initialize Socket
@@ -88,7 +87,6 @@ export default function LiveNotesPad({ meetingId, initialContent = '', currentUs
       
       <div className="flex-1 overflow-hidden" style={{ minHeight: '300px' }}>
         <ReactQuill 
-          ref={quillRef}
           theme="snow" 
           value={content} 
           onChange={handleChange}

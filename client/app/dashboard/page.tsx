@@ -39,7 +39,7 @@ const emptyDashboard: DashboardSummary = {
   activityLogs: [],
 };
 
-const getAuthHeaders = () => {
+const getAuthHeaders = (): Record<string, string> => {
   const token = localStorage.getItem('accessToken');
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
@@ -173,7 +173,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="py-8">
-            <MeetingTable searchQuery={searchQuery} />
+            <MeetingTable searchQuery={searchQuery} currentUser={currentUser} />
           </div>
         </>
       );
@@ -196,7 +196,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="py-8">
-            <MeetingTable searchQuery={searchQuery} isDepartmentAdmin={true} />
+            <MeetingTable searchQuery={searchQuery} currentUser={currentUser} />
           </div>
         </>
       );

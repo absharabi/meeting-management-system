@@ -143,7 +143,7 @@ function buildCoverDetailsFromMeeting(meeting: any, details: any = {}) {
 
 export const getMom = async (req: Request, res: Response): Promise<void> => {
   try {
-    const meeting = await populateMeeting(req.params.id);
+    const meeting = await populateMeeting(req.params.id as string);
     if (!meeting) {
       res.status(404).json({ message: 'Meeting not found' });
       return;
@@ -158,7 +158,7 @@ export const getMom = async (req: Request, res: Response): Promise<void> => {
 export const saveMom = async (req: Request, res: Response): Promise<void> => {
   try {
     const { agendaItems, momCoverDetails, momStatus } = req.body;
-    const target = await populateMeeting(req.params.id);
+    const target = await populateMeeting(req.params.id as string);
     if (!target) {
       res.status(404).json({ message: 'Meeting not found' });
       return;
@@ -185,7 +185,7 @@ export const saveMom = async (req: Request, res: Response): Promise<void> => {
       ...(momStatus === MomStatus.Confirmed ? {} : { momApprovals: [] }),
     };
 
-    const meeting = await Meeting.findByIdAndUpdate(req.params.id, update, {
+    const meeting = await Meeting.findByIdAndUpdate(req.params.id as string, update, {
       new: true,
       runValidators: true,
     });
@@ -195,7 +195,7 @@ export const saveMom = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    res.json(withDerivedMomMembers(await populateMeeting(req.params.id)));
+    res.json(withDerivedMomMembers(await populateMeeting(req.params.id as string)));
   } catch (error) {
     res.status(500).json({ message: 'Server error while saving MoM', error });
   }
@@ -204,7 +204,7 @@ export const saveMom = async (req: Request, res: Response): Promise<void> => {
 export const patchMom = async (req: Request, res: Response): Promise<void> => {
   try {
     const update: any = {};
-    const target = await populateMeeting(req.params.id);
+    const target = await populateMeeting(req.params.id as string);
     if (!target) {
       res.status(404).json({ message: 'Meeting not found' });
       return;
@@ -219,7 +219,7 @@ export const patchMom = async (req: Request, res: Response): Promise<void> => {
     if (req.body.momCoverDetails) update.momCoverDetails = buildCoverDetailsFromMeeting(target, req.body.momCoverDetails);
     if (req.body.momStatus) update.momStatus = req.body.momStatus;
 
-    const meeting = await Meeting.findByIdAndUpdate(req.params.id, update, {
+    const meeting = await Meeting.findByIdAndUpdate(req.params.id as string, update, {
       new: true,
       runValidators: true,
     });
@@ -229,7 +229,7 @@ export const patchMom = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    res.json(withDerivedMomMembers(await populateMeeting(req.params.id)));
+    res.json(withDerivedMomMembers(await populateMeeting(req.params.id as string)));
   } catch (error) {
     res.status(500).json({ message: 'Server error while updating MoM', error });
   }
@@ -275,7 +275,7 @@ export const approveMom = async (req: Request, res: Response): Promise<void> => 
 
 export const exportMom = async (req: Request, res: Response): Promise<void> => {
   try {
-    const meeting = await populateMeeting(req.params.id);
+    const meeting = await populateMeeting(req.params.id as string);
     if (!meeting) {
       res.status(404).json({ message: 'Meeting not found' });
       return;

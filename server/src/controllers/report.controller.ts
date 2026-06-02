@@ -7,7 +7,7 @@ import User from '../models/User';
 
 export const getMeetingReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id: identifier } = req.params;
+    const identifier = req.params.id as string;
 
     let meetingQuery;
     if (mongoose.Types.ObjectId.isValid(identifier)) {

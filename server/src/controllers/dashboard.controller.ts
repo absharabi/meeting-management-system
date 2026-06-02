@@ -84,16 +84,18 @@ const buildMeetingScope = async (userId: string, role: string) => {
 const countMeetings = (scope: any, extra: any = {}) => Meeting.countDocuments(mergeQuery(scope, extra));
 
 const calculateAttendanceAverage = async (scope: any) => {
-  const meetings = await Meeting.find(mergeQuery(scope, { status: MeetingStatus.Completed })).select('participants attendance');
-  const totals = meetings.reduce(
-    (acc, meeting) => {
-      acc.expected += meeting.participants.length;
-      acc.attended += meeting.attendance.length;
-      return acc;
+  const result = await Meeting.aggregate([
+    { $match: mergeQuery(scope, { status: MeetingStatus.Completed }) },
+    {
+      $group: {
+        _id: null,
+        expected: { $sum: { $size: { $ifNull: ['$participants', []] } } },
+        attended: { $sum: { $size: { $ifNull: ['$attendance', []] } } },
+      },
     },
-    { expected: 0, attended: 0 },
-  );
+  ]);
 
+  const totals = result[0] || { expected: 0, attended: 0 };
   return totals.expected === 0 ? 0 : (totals.attended / totals.expected) * 100;
 };
 

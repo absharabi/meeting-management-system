@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ShieldAlert } from "lucide-react";
+import { Suspense } from "react";
 
 const reasonMessages: Record<string, string> = {
   ACCESS_DENIED: "Your Google account is not linked to an active user in this system.",
 };
 
-export default function UnauthorizedPage() {
+function UnauthorizedContent() {
   const searchParams = useSearchParams();
   const reason = searchParams.get("reason") || "ACCESS_DENIED";
   const message = reasonMessages[reason] || "You do not have permission to access this application.";
@@ -40,5 +41,13 @@ export default function UnauthorizedPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+export default function UnauthorizedPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 dark:bg-gray-950" />}>
+      <UnauthorizedContent />
+    </Suspense>
   );
 }
