@@ -9,6 +9,7 @@ export interface MemberPresent {
 
 export interface MomUser {
   _id: string;
+  id?: string;
   name: string;
   email?: string;
   department?: string;
@@ -42,6 +43,15 @@ export interface MomCoverDetails {
   venueLine: string;
 }
 
+export interface MomApprovalStatus {
+  userId: string;
+  name: string;
+  email?: string;
+  department?: string;
+  approved: boolean;
+  approvedAt?: string;
+}
+
 export interface MomMeeting {
   _id: string;
   title: string;
@@ -56,5 +66,6 @@ export interface MomMeeting {
   membersPresent: MemberPresent[];
   agendaItems: MomAgendaItem[];
   momCoverDetails?: MomCoverDetails;
+  momApprovalStatus?: MomApprovalStatus[];
   momStatus: MomStatus;
 }

@@ -79,7 +79,22 @@ export interface IMeeting extends Document {
     dateLine: string;
     venueLine: string;
   };
+  momApprovals: {
+    user: Types.ObjectId;
+    approvedAt: Date;
+  }[];
   momStatus: MomStatus;
+  aiTranscript?: string;
+  aiSummary?: string;
+  aiKeyPoints: string[];
+  aiDecisions: string[];
+  aiRisks: string[];
+  aiActionItems: {
+    task: string;
+    owner: string;
+    deadline: string;
+  }[];
+  aiSummaryGeneratedAt?: Date;
   createdAt:    Date;
   updatedAt:    Date;
 }
@@ -121,6 +136,14 @@ const MomCoverDetailsSchema = new Schema(
     instituteName: { type: String, trim: true, default: 'National Institute of Technology Calicut' },
     dateLine: { type: String, trim: true, default: '' },
     venueLine: { type: String, trim: true, default: '' },
+  },
+  { _id: false }
+);
+
+const MomApprovalSchema = new Schema(
+  {
+    user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    approvedAt: { type: Date, default: Date.now },
   },
   { _id: false }
 );
@@ -214,10 +237,48 @@ const MeetingSchema = new Schema<IMeeting>(
       type: MomCoverDetailsSchema,
       default: () => ({})
     },
+    momApprovals: {
+      type: [MomApprovalSchema],
+      default: []
+    },
     momStatus: {
       type: String,
       enum: Object.values(MomStatus),
       default: MomStatus.Draft
+    },
+    aiTranscript: {
+      type: String,
+      default: ''
+    },
+    aiSummary: {
+      type: String,
+      default: ''
+    },
+    aiKeyPoints: {
+      type: [String],
+      default: []
+    },
+    aiDecisions: {
+      type: [String],
+      default: []
+    },
+    aiRisks: {
+      type: [String],
+      default: []
+    },
+    aiActionItems: {
+      type: [
+        {
+          task: { type: String, default: '' },
+          owner: { type: String, default: '' },
+          deadline: { type: String, default: '' }
+        }
+      ],
+      default: []
+    },
+    aiSummaryGeneratedAt: {
+      type: Date,
+      default: null
     }
   },
   { 
