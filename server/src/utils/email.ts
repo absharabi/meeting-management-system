@@ -20,7 +20,8 @@ export const sendEmail = async (
   to: string, 
   subject: string, 
   html: string,
-  meetingDetails?: { title: string, description: string, date: string, startTime: string, endTime: string, venue: string }
+  meetingDetails?: { title: string, description: string, date: string, startTime: string, endTime: string, venue: string },
+  replyTo?: string
 ) => {
   try {
     const transporter = createTransporter();
@@ -69,13 +70,14 @@ export const sendEmail = async (
       }
     }
 
-    const mailOptions = {
+    const mailOptions: any = {
       from: `"Meeting Management System" <${process.env.GMAIL_USER}>`,
       to,
       subject,
       html,
       attachments
     };
+    if (replyTo) mailOptions.replyTo = replyTo;
 
     const info = await transporter.sendMail(mailOptions);
     console.log(`Email sent successfully to ${to}. Message ID: ${info.messageId}`);

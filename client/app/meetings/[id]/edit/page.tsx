@@ -20,7 +20,10 @@ export default function EditMeetingPage() {
   useEffect(() => {
     const fetchMeeting = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/meetings`);
+        const token = localStorage.getItem('accessToken');
+        const res = await fetch(`http://localhost:5000/api/meetings`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
         if (!res.ok) throw new Error('Failed to fetch meetings');
         const data = await res.json();
         

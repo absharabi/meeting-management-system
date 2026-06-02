@@ -244,7 +244,7 @@ export const approveMom = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    const target = await populateMeeting(req.params.id);
+    const target = await populateMeeting(req.params.id as string);
     if (!target) {
       res.status(404).json({ message: 'Meeting not found' });
       return;
@@ -262,12 +262,12 @@ export const approveMom = async (req: Request, res: Response): Promise<void> => 
 
     const alreadyApproved = (target.momApprovals || []).some((approval: any) => getUserId(approval.user) === currentUserId);
     if (!alreadyApproved) {
-      await Meeting.findByIdAndUpdate(req.params.id, {
+      await Meeting.findByIdAndUpdate(req.params.id as string, {
         $push: { momApprovals: { user: currentUserId, approvedAt: new Date() } },
       });
     }
 
-    res.json(withDerivedMomMembers(await populateMeeting(req.params.id)));
+    res.json(withDerivedMomMembers(await populateMeeting(req.params.id as string)));
   } catch (error) {
     res.status(500).json({ message: 'Server error while approving MoM', error });
   }

@@ -85,7 +85,10 @@ export const createMeeting = async (req: Request, res: Response): Promise<void> 
     const newMeeting = createdMeetings[0]; // The first one for the email
 
     // Populate to get emails and preferences
-    const populatedMeeting = await Meeting.findById(newMeeting._id).populate('participants.user', 'email name notificationPreferences mutedMeetings');
+    const populatedMeeting = await Meeting.findById(newMeeting._id)
+      .populate('participants.user', 'email name notificationPreferences mutedMeetings')
+      .populate('organizerId', 'email name');
+      
     if (!populatedMeeting) {
       res.status(500).json({ message: 'Failed to populate created meeting' });
       return;
@@ -97,16 +100,53 @@ export const createMeeting = async (req: Request, res: Response): Promise<void> 
         sendEmail(
           p.user.email,
           `Meeting Invitation: ${newMeeting.title}`,
-          `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-            <h2 style="color: #2563eb;">Meeting Invitation</h2>
-            <p>Hello ${p.user.name},</p>
-            <p>You have been invited to a new meeting by your organization.</p>
-            <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
-              <p style="margin: 5px 0;"><strong>Topic:</strong> ${newMeeting.title}</p>
-              <p style="margin: 5px 0;"><strong>Date:</strong> ${new Date(newMeeting.date).toDateString()}</p>
-              <p style="margin: 5px 0;"><strong>Time:</strong> ${newMeeting.startTime}</p>
+          `<div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0f172a; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+            <!-- Header with Gradient -->
+            <div style="background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); padding: 40px 20px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">Meeting Scheduled</h1>
+              <p style="color: #e2e8f0; font-size: 16px; margin: 10px 0 0 0; opacity: 0.9;">You have a new invitation.</p>
             </div>
-            <p>Please log in to the Meeting Management System to view the full agenda and submit your RSVP.</p>
+
+            <!-- Body -->
+            <div style="padding: 30px;">
+              <p style="color: #f8fafc; font-size: 16px; line-height: 1.6; margin-top: 0;">Hi <strong>${p.user.name}</strong>,</p>
+              <p style="color: #cbd5e1; font-size: 16px; line-height: 1.6;">Your organizer has invited you to a new meeting. Please find the details below and let the team know if you can attend.</p>
+
+              <!-- Meeting Details Card -->
+              <div style="background-color: #1e293b; border-left: 4px solid #8b5cf6; padding: 20px; border-radius: 8px; margin: 30px 0;">
+                <h3 style="color: #ffffff; font-size: 20px; margin: 0 0 15px 0;">${newMeeting.title}</h3>
+                
+                <table width="100%" cellpadding="0" cellspacing="0" style="color: #94a3b8; font-size: 15px; line-height: 1.6;">
+                  <tr>
+                    <td width="30" style="padding-bottom: 10px;">📅</td>
+                    <td style="padding-bottom: 10px;"><strong style="color: #e2e8f0;">Date:</strong> ${new Date(newMeeting.date).toDateString()}</td>
+                  </tr>
+                  <tr>
+                    <td width="30" style="padding-bottom: 10px;">⏰</td>
+                    <td style="padding-bottom: 10px;"><strong style="color: #e2e8f0;">Time:</strong> ${newMeeting.startTime} - ${newMeeting.endTime || 'End'}</td>
+                  </tr>
+                  <tr>
+                    <td width="30">📍</td>
+                    <td><strong style="color: #e2e8f0;">Venue:</strong> ${newMeeting.venue || newMeeting.mode}</td>
+                  </tr>
+                </table>
+              </div>
+
+              <!-- CTA -->
+              <div style="text-align: center; margin: 40px 0 20px 0;">
+                <a href="${process.env.FRONTEND_URL}/meetings/${newMeeting._id}" style="display: inline-block; background: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%); color: #ffffff; text-decoration: none; font-weight: 600; font-size: 16px; padding: 14px 32px; border-radius: 30px;">
+                  Review Agenda & RSVP
+                </a>
+              </div>
+            </div>
+
+            <!-- Footer -->
+            <div style="background-color: #0b1121; padding: 20px; text-align: center;">
+              <p style="color: #64748b; font-size: 13px; margin: 0; line-height: 1.5;">
+                Sent securely from Meeting Management System.<br>
+                Reply directly to this email to contact the organizer.
+              </p>
+            </div>
           </div>`,
           {
             title: newMeeting.title,
@@ -115,7 +155,8 @@ export const createMeeting = async (req: Request, res: Response): Promise<void> 
             startTime: newMeeting.startTime,
             endTime: newMeeting.endTime,
             venue: newMeeting.venue || ''
-          }
+          },
+          (populatedMeeting.organizerId as any)?.email
         );
       }
     });

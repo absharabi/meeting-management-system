@@ -1,0 +1,6 @@
+Alice: Welcome everyone. Let's discuss the new server upgrade.
+Bob: The upgrade is scheduled for Friday night. I will handle the deployment.
+Alice: Sounds good. We need to make sure the database is backed up first.
+Bob: Agreed. That's a critical decision. I'll make sure it's done.
+Alice: The only risk is potential downtime for users in the Asian timezone.
+Bob: I'll put up a maintenance banner. Meeting adjourned.
