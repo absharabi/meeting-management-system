@@ -47,12 +47,12 @@ export default function MeetingTable({
       setIsLoading(true);
       const token = localStorage.getItem('accessToken');
       const url = query ? `http://localhost:5000/api/meetings?keyword=${encodeURIComponent(query)}` : 'http://localhost:5000/api/meetings';
-      const res = await fetch(url, {
+      const apiResponse = await fetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      if (res.ok) {
-        const data = await res.json();
-        setMeetings(data);
+      if (apiResponse.ok) {
+        const fetchedMeetingsList = await apiResponse.json();
+        setMeetings(fetchedMeetingsList);
       }
     } catch (error) {
       console.error('Failed to fetch meetings', error);
@@ -81,11 +81,11 @@ export default function MeetingTable({
 
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:5000/api/meetings/${id}`, {
+      const deleteResponse = await fetch(`http://localhost:5000/api/meetings/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) {
+      if (deleteResponse.ok) {
         toast.success('Meeting deleted successfully!');
         setMeetings(prev => prev.filter(m => m._id !== id));
       } else {
@@ -100,7 +100,7 @@ export default function MeetingTable({
   const handleRSVP = async (id: string, status: string) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:5000/api/meetings/${id}/rsvp`, {
+      const rsvpResponse = await fetch(`http://localhost:5000/api/meetings/${id}/rsvp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -108,12 +108,12 @@ export default function MeetingTable({
         },
         body: JSON.stringify({ status })
       });
-      if (res.ok) {
+      if (rsvpResponse.ok) {
         setOpenDropdownId(null);
         fetchMeetings(searchQuery); // Refresh to show updated status
         toast.success(`RSVP updated to ${status}`);
       } else {
-        const err = await res.json();
+        const err = await rsvpResponse.json();
         toast.error(err.message || 'Failed to update RSVP');
       }
     } catch (error) {

@@ -8,11 +8,11 @@ import { emitNotification } from './socketService';
 export const initReminderService = () => {
   cron.schedule('* * * * *', async () => {
     try {
-      const now = new Date();
-      const startOfDay = new Date(now);
+      const currentTime = new Date();
+      const startOfDay = new Date(currentTime);
       startOfDay.setHours(0, 0, 0, 0);
       
-      console.log(`[Cron] Checking for meeting reminders at ${now.toLocaleTimeString()}`);
+      console.log(`[Cron] Checking for meeting reminders at ${currentTime.toLocaleTimeString()}`);
       
       // Look for meetings that are active and not cancelled
       const upcomingMeetings = await Meeting.find({
@@ -34,23 +34,23 @@ export const initReminderService = () => {
           minutes
         );
 
-        const diffMs = meetingStart.getTime() - now.getTime();
-        const diffMinutes = Math.round(diffMs / 60000); 
+        const timeDifferenceMs = meetingStart.getTime() - currentTime.getTime();
+        const minutesUntilMeeting = Math.round(timeDifferenceMs / 60000); 
         
-        console.log(`[Cron Debug] Meeting: ${meeting.title} | Start: ${meetingStart.toLocaleTimeString()} | Now: ${now.toLocaleTimeString()} | Diff (mins): ${diffMinutes}`);
+        console.log(`[Cron Debug] Meeting: ${meeting.title} | Start: ${meetingStart.toLocaleTimeString()} | Now: ${currentTime.toLocaleTimeString()} | Diff (mins): ${minutesUntilMeeting}`);
 
         let reminderMessage = '';
         let reminderType = '';
 
         // Generate reminders for exact intervals
         // We use small windows to account for slight cron delays
-        if (diffMinutes === 24 * 60) {
+        if (minutesUntilMeeting === 24 * 60) {
           reminderMessage = `Reminder: ${meeting.title} is starting tomorrow at ${meeting.startTime}`;
           reminderType = 'Reminder 24h';
-        } else if (diffMinutes === 60) {
+        } else if (minutesUntilMeeting === 60) {
           reminderMessage = `Reminder: ${meeting.title} is starting in 1 hour!`;
           reminderType = 'Reminder 1h';
-        } else if (diffMinutes === 10) {
+        } else if (minutesUntilMeeting === 10) {
           reminderMessage = `Reminder: ${meeting.title} is starting in 10 minutes! Join soon.`;
           reminderType = 'Reminder 10m';
         }

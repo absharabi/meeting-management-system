@@ -15,7 +15,7 @@ interface LiveNotesPadProps {
 }
 
 export default function LiveNotesPad({ meetingId, initialContent = '', currentUser }: LiveNotesPadProps) {
-  const [content, setContent] = useState(initialContent);
+  const [editorText, setEditorText] = useState(initialContent);
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef<Socket | null>(null);
 
@@ -37,8 +37,8 @@ export default function LiveNotesPad({ meetingId, initialContent = '', currentUs
     });
 
     // Listen for incoming note updates from other users
-    socketRef.current.on('note-updated', (newContent: string) => {
-      setContent(newContent);
+    socketRef.current.on('note-updated', (incomingText: string) => {
+      setEditorText(incomingText);
     });
 
     return () => {
@@ -49,11 +49,11 @@ export default function LiveNotesPad({ meetingId, initialContent = '', currentUs
     };
   }, [meetingId]);
 
-  const handleChange = (value: string, delta: any, source: string) => {
-    setContent(value);
+  const handleEditorChange = (enteredValue: string, changeDelta: any, actionSource: string) => {
+    setEditorText(enteredValue);
     // Only broadcast if the change was made by a 'user' (not by 'api' from receiving socket data)
-    if (source === 'user' && socketRef.current) {
-      socketRef.current.emit('note-update', { meetingId, content: value });
+    if (actionSource === 'user' && socketRef.current) {
+      socketRef.current.emit('note-update', { meetingId, content: enteredValue });
     }
   };
 
@@ -88,8 +88,8 @@ export default function LiveNotesPad({ meetingId, initialContent = '', currentUs
       <div className="flex-1 overflow-hidden" style={{ minHeight: '300px' }}>
         <ReactQuill 
           theme="snow" 
-          value={content} 
-          onChange={handleChange}
+          value={editorText} 
+          onChange={handleEditorChange}
           modules={modules}
           className="h-full flex flex-col"
           placeholder="Start typing notes collaboratively..."
