@@ -41,15 +41,24 @@ export const summarizeTranscript = async (transcript: string): Promise<AISummary
   const model = process.env.OLLAMA_MODEL || 'llama3.2';
 
   const prompt = `
-You are an assistant for a meeting management system.
-Summarize the transcript and return ONLY valid JSON in this exact shape:
+You are preparing official meeting minutes from a transcript.
+Extract exhaustively. Do not compress multiple decisions into one item, do not drop minor decisions, and do not omit details just because they seem small.
+Return ONLY valid JSON in this exact shape:
 {
-  "summary": "short paragraph",
-  "keyPoints": ["point"],
-  "decisions": ["decision"],
+  "summary": "detailed paragraph covering all agenda topics discussed",
+  "keyPoints": ["one factual discussion detail per item"],
+  "decisions": ["one decision or resolution per item"],
   "actionItems": [{ "task": "task", "owner": "owner if mentioned otherwise Unassigned", "deadline": "deadline if mentioned otherwise Not mentioned" }],
   "risks": ["risk or blocker"]
 }
+
+Rules:
+- Include every decision, resolution, approval, confirmation, rejection, deferral, recommendation, instruction, and agreed next step.
+- Preserve names, departments, amounts, dates, deadlines, tools, models, locations, agenda numbers, and conditions whenever mentioned.
+- Keep separate decisions as separate array entries, even when they are related.
+- Action items must be separate from decisions when someone has to do something after the meeting.
+- If no owner or deadline is stated, use "Unassigned" and "Not mentioned".
+- Do not mention AI, summarization, or that this was generated.
 
 Transcript:
 ${transcript}

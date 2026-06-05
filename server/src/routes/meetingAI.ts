@@ -158,6 +158,39 @@ const buildAgendaItemsFromModule = async (meetingId: string) => {
   }));
 };
 
+const clipSubject = (value: string, fallback: string) => {
+  const clean = value.replace(/\s+/g, ' ').trim();
+  if (!clean) return fallback;
+  return clean.length > 90 ? `${clean.slice(0, 87)}...` : clean;
+};
+
+const buildExtraMomItems = (
+  startIndex: number,
+  decisions: string[] = [],
+  actionItems: any[] = [],
+  keyPoints: string[] = [],
+) => {
+  const extraCount = Math.max(decisions.length, actionItems.length, keyPoints.length);
+  return Array.from({ length: extraCount }, (_unused, offset) => {
+    const decision = decisions[offset] || '';
+    const actionItem = actionItems[offset];
+    const detail = keyPoints[offset] || decision || actionItem?.task || '';
+
+    return {
+      itemNumber: String(startIndex + offset + 1).padStart(2, '0'),
+      sectionTag: '',
+      sectionGroup: actionItem?.task ? 'Consideration & Approval' : 'Any Other Matter',
+      subject: clipSubject(actionItem?.task || decision || detail, `Meeting item ${startIndex + offset + 1}`),
+      backgroundNote: detail,
+      decision,
+      actionRequired: actionItem?.task || '',
+      responsiblePerson: actionItem?.owner || '',
+      targetDate: parseDeadline(actionItem?.deadline),
+      order: startIndex + offset,
+    };
+  });
+};
+
 router.use(protect);
 
 router.post('/:id/summary', upload.single('meetingFile'), async (req: Request, res: Response): Promise<void> => {
@@ -183,7 +216,7 @@ router.post('/:id/summary', upload.single('meetingFile'), async (req: Request, r
       requestingUser.role !== 'Admin' &&
       requestingUser.role !== 'SuperAdmin'
     ) {
-      res.status(403).json({ message: 'Only the organizer or an admin can generate an AI summary.' });
+      res.status(403).json({ message: 'Only the organizer or an admin can generate a meeting summary.' });
       return;
     }
 
@@ -207,7 +240,7 @@ router.post('/:id/summary', upload.single('meetingFile'), async (req: Request, r
     await meeting.save();
 
     res.json({
-      message: 'AI summary generated successfully.',
+      message: 'Meeting summary generated successfully.',
       meeting,
       ai: {
         transcript: meeting.aiTranscript,
@@ -221,7 +254,7 @@ router.post('/:id/summary', upload.single('meetingFile'), async (req: Request, r
     });
   } catch (error) {
     res.status(500).json({
-      message: error instanceof Error ? error.message : 'Failed to generate AI meeting summary.',
+      message: error instanceof Error ? error.message : 'Failed to generate meeting summary.',
     });
   }
 });
@@ -251,7 +284,7 @@ router.post('/:id/mom-draft', async (req: Request, res: Response): Promise<void>
     const actionItems = Array.isArray(req.body?.actionItems) ? req.body.actionItems : meeting.aiActionItems;
 
     if (!summaryText && !keyPoints?.length && !decisions?.length && !actionItems?.length) {
-      res.status(400).json({ message: 'Generate an AI summary before creating a MoM draft.' });
+      res.status(400).json({ message: 'Generate a meeting summary before creating a MoM draft.' });
       return;
     }
 
@@ -277,11 +310,18 @@ router.post('/:id/mom-draft', async (req: Request, res: Response): Promise<void>
       meeting.aiRisks?.length ? `Risks / blockers:\n${meeting.aiRisks.map((risk) => `- ${risk}`).join('\n')}` : '',
     ].filter(Boolean).join('\n\n');
 
-    const agendaItemsToFill = existingAgendaItems.length ? existingAgendaItems : [{
+    const normalizedDecisions = meeting.aiDecisions || [];
+    const normalizedActions = meeting.aiActionItems || [];
+    const extraDecisions = normalizedDecisions.slice(existingAgendaItems.length);
+    const extraActions = normalizedActions.slice(existingAgendaItems.length);
+    const extraKeyPoints = (meeting.aiKeyPoints || []).slice(existingAgendaItems.length);
+    const extraMomItems = buildExtraMomItems(existingAgendaItems.length, extraDecisions, extraActions, extraKeyPoints);
+
+    const agendaItemsToFill = existingAgendaItems.length ? [...existingAgendaItems, ...extraMomItems] : [{
       itemNumber: '01',
       sectionTag: '',
       sectionGroup: 'Reporting',
-      subject: 'AI-generated meeting overview',
+      subject: 'Meeting overview',
       backgroundNote: '',
       decision: '',
       actionRequired: '',
@@ -289,15 +329,15 @@ router.post('/:id/mom-draft', async (req: Request, res: Response): Promise<void>
       targetDate: null,
       blocks: createBlocks({ sectionGroup: 'Reporting' }),
       order: 0,
-    }];
+    }, ...buildExtraMomItems(1, normalizedDecisions.slice(1), normalizedActions.slice(1), (meeting.aiKeyPoints || []).slice(1))];
 
     const filledAgendaItems = agendaItemsToFill.map((item: any, index) => {
       const actionItem = meeting.aiActionItems?.[index];
-      const decision = meeting.aiDecisions?.[index] || (index === 0 ? meeting.aiDecisions?.join('\n') : '');
+      const decision = meeting.aiDecisions?.[index] || item.decision || '';
       const targetDate = item.targetDate || parseDeadline(actionItem?.deadline);
       const targetDateString = targetDate ? new Date(targetDate).toISOString().slice(0, 10) : '';
       const values = {
-        backgroundNote: item.backgroundNote || fallbackBackground,
+        backgroundNote: item.backgroundNote || meeting.aiKeyPoints?.[index] || fallbackBackground,
         decision: item.decision || decision || '',
         actionRequired: item.actionRequired || actionItem?.task || '',
         responsiblePerson: item.responsiblePerson || actionItem?.owner || '',
@@ -325,13 +365,13 @@ router.post('/:id/mom-draft', async (req: Request, res: Response): Promise<void>
     await meeting.save();
 
     res.json({
-      message: 'MoM remaining fields filled from AI summary.',
+      message: 'MoM remaining fields filled from the meeting transcript.',
       meeting,
       agendaItems: filledAgendaItems,
     });
   } catch (error) {
     res.status(500).json({
-      message: error instanceof Error ? error.message : 'Failed to generate MoM draft from AI summary.',
+      message: error instanceof Error ? error.message : 'Failed to generate MoM draft from the meeting transcript.',
     });
   }
 });
@@ -349,12 +389,12 @@ router.get('/:id/ai-mom-pdf', async (req: Request, res: Response): Promise<void>
     }
 
     if (!meeting.agendaItems?.length) {
-      res.status(400).json({ message: 'Approve the AI draft before exporting MoM PDF.' });
+      res.status(400).json({ message: 'Approve the draft before exporting MoM PDF.' });
       return;
     }
 
     const pdf = await generateMomPdf(meeting as any);
-    const filename = `${meeting.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'mom'}-ai-draft.pdf`;
+    const filename = `${meeting.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'mom'}-draft.pdf`;
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

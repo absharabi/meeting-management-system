@@ -1,8 +1,9 @@
 "use client";
 
-import { MomAgendaItem, MomBlock, MomMeeting } from "./types";
+import { MomAgendaItem, MomBlock, MomMeeting, MomTableValue } from "./types";
 
 const groups = ["Procedural", "Consideration & Approval", "Reporting", "Any Other Matter"];
+const stripHtml = (value: string) => value.replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim();
 
 export default function MomPreview({ meeting }: { meeting: MomMeeting }) {
   const agendaItems = [...(meeting.agendaItems || [])].sort((a, b) => a.order - b.order);
@@ -61,10 +62,12 @@ export default function MomPreview({ meeting }: { meeting: MomMeeting }) {
               <h3 className="rounded-lg bg-gray-100 px-3 py-2 font-bold text-gray-900 dark:bg-gray-800 dark:text-white">{group}</h3>
               <div className="mt-3 space-y-4">
                 {groupItems.map((item, index) => (
-                  <article key={item._id || `${item.itemNumber}-${index}`} className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-                    <p className="text-sm font-bold text-blue-700 dark:text-blue-300">{[item.sectionTag, item.itemNumber].filter(Boolean).join(" / ")}</p>
+                  <article key={item._id || `${item.itemNumber}-${index}`} className="rounded-lg border border-gray-300 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-950">
+                    <p className="text-sm font-bold text-blue-700 dark:text-blue-300">
+                      Item {[item.sectionTag, item.itemNumber || String(index + 1).padStart(2, "0")].filter(Boolean).join(" / ")}
+                    </p>
                     <h4 className="mt-1 font-bold text-gray-900 dark:text-white">{item.subject}</h4>
-                    {blocksForItem(item).map((block, blockIndex) => (
+                    {visibleBlocksForItem(item).map((block, blockIndex) => (
                       block.type === "table"
                         ? <PreviewTable key={`${block.label}-${blockIndex}`} block={block} />
                         : <PreviewBlock key={`${block.label}-${blockIndex}`} title={block.label} html={block.type === "backgroundNote" || block.type === "decision" ? String(block.value || "") : `<p>${String(block.value || "-")}</p>`} />
@@ -82,11 +85,15 @@ export default function MomPreview({ meeting }: { meeting: MomMeeting }) {
 
 function PreviewBlock({ title, html }: { title: string; html: string }) {
   return (
-    <div className="mt-3">
-      <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">{title}</p>
-      <div className="prose prose-sm mt-1 max-w-none text-gray-600 dark:prose-invert dark:text-gray-300" dangerouslySetInnerHTML={{ __html: html || "<p>-</p>" }} />
+    <div className="mt-3 rounded-md border border-gray-200 dark:border-gray-800">
+      <p className="border-b border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">{title}</p>
+      <div className="prose prose-sm max-w-none px-3 py-2 text-gray-600 dark:prose-invert dark:text-gray-300" dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   );
+}
+
+function visibleBlocksForItem(item: MomAgendaItem): MomBlock[] {
+  return blocksForItem(item).filter(hasBlockValue);
 }
 
 function blocksForItem(item: MomAgendaItem): MomBlock[] {
@@ -101,21 +108,47 @@ function blocksForItem(item: MomAgendaItem): MomBlock[] {
 }
 
 function PreviewTable({ block }: { block: MomBlock }) {
-  const value = typeof block.value === "object" && block.value ? block.value : { columns: [], rows: [] };
+  const value = compactTableValue(typeof block.value === "object" && block.value ? block.value : { columns: [], rows: [] });
+  if (!value.columns.length) return null;
 
   return (
     <div className="mt-3 overflow-x-auto">
       <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">{block.label}</p>
-      <table className="mt-2 w-full text-left text-sm">
+      <table className="mt-2 w-full border-collapse text-left text-sm">
         <thead className="bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-          <tr>{value.columns.map((column, index) => <th key={`${column}-${index}`} className="px-3 py-2">{column || "-"}</th>)}</tr>
+          <tr>{value.columns.map((column, index) => <th key={`${column}-${index}`} className="border border-gray-200 px-3 py-2 dark:border-gray-800">{column || `Column ${index + 1}`}</th>)}</tr>
         </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+        <tbody>
           {value.rows.map((row, rowIndex) => (
-            <tr key={`row-${rowIndex}`}>{value.columns.map((_, columnIndex) => <td key={`cell-${rowIndex}-${columnIndex}`} className="px-3 py-2">{row[columnIndex] || "-"}</td>)}</tr>
+            <tr key={`row-${rowIndex}`}>{value.columns.map((_, columnIndex) => <td key={`cell-${rowIndex}-${columnIndex}`} className="border border-gray-200 px-3 py-2 dark:border-gray-800">{row[columnIndex] || "-"}</td>)}</tr>
           ))}
         </tbody>
       </table>
     </div>
   );
+}
+
+function hasBlockValue(block: MomBlock) {
+  if (block.type === "table") {
+    const table = compactTableValue(typeof block.value === "object" && block.value ? block.value : { columns: [], rows: [] });
+    return table.columns.length > 0 && table.rows.length > 0;
+  }
+  return stripHtml(String(block.value || "")).length > 0;
+}
+
+function compactTableValue(value: Partial<MomTableValue>) {
+  const columns = Array.isArray(value.columns) ? value.columns.map(String) : [];
+  const rows = Array.isArray(value.rows) ? value.rows.map((row: unknown) => Array.isArray(row) ? row.map(String) : []) : [];
+  const visibleColumnIndexes = columns
+    .map((column, index) => ({ column, index }))
+    .filter(({ column, index }) => column.trim() || rows.some((row) => String(row[index] || "").trim()))
+    .map(({ index }) => index);
+  const compactRows = rows
+    .map((row) => visibleColumnIndexes.map((index) => String(row[index] || "")))
+    .filter((row) => row.some((cell) => cell.trim()));
+
+  return {
+    columns: visibleColumnIndexes.map((index) => columns[index] || `Column ${index + 1}`),
+    rows: compactRows,
+  };
 }

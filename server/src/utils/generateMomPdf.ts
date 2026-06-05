@@ -11,6 +11,11 @@ type PdfLine = {
   };
 };
 
+type SimpleTable = {
+  columns: string[];
+  rows: string[][];
+};
+
 const stripHtml = (value = '') => value
   .replace(/<br\s*\/?>/gi, '\n')
   .replace(/<\/p>/gi, '\n')
@@ -48,10 +53,26 @@ const blockLabels: Record<string, string> = {
   customField: 'Custom Field',
 };
 
-const normalizeTable = (value: any) => ({
+const normalizeTable = (value: any): SimpleTable => ({
   columns: Array.isArray(value?.columns) && value.columns.length ? value.columns.map(String) : ['Column 1', 'Column 2'],
   rows: Array.isArray(value?.rows) && value.rows.length ? value.rows.map((row: any) => Array.isArray(row) ? row.map(String) : []) : [['', '']],
 });
+
+const compactTable = (value: any): SimpleTable => {
+  const table = normalizeTable(value);
+  const visibleColumnIndexes = table.columns
+    .map((column, index) => ({ column, index }))
+    .filter(({ column, index }) => column.trim() || table.rows.some((row) => String(row[index] || '').trim()))
+    .map(({ index }) => index);
+  const rows = table.rows
+    .map((row) => visibleColumnIndexes.map((index) => String(row[index] || '')))
+    .filter((row) => row.some((cell) => cell.trim()));
+
+  return {
+    columns: visibleColumnIndexes.map((index) => table.columns[index] || `Column ${index + 1}`),
+    rows,
+  };
+};
 
 const normalizeBlocks = (item: any) => {
   if (Array.isArray(item.blocks) && item.blocks.length) {
@@ -72,9 +93,17 @@ const normalizeBlocks = (item: any) => {
 };
 
 const blockDisplayValue = (block: any) => {
-  if (block.type === 'backgroundNote' || block.type === 'decision') return stripHtml(block.value) || '-';
-  if (block.type === 'targetDate') return formatDate(block.value) || '-';
-  return String(block.value || '').trim() || '-';
+  if (block.type === 'backgroundNote' || block.type === 'decision') return stripHtml(block.value);
+  if (block.type === 'targetDate') return formatDate(block.value);
+  return String(block.value || '').trim();
+};
+
+const hasBlockValue = (block: any) => {
+  if (block.type === 'table') {
+    const table = compactTable(block.value);
+    return table.columns.length > 0 && table.rows.length > 0;
+  }
+  return blockDisplayValue(block).length > 0;
 };
 
 const wrapText = (text: string, maxChars: number) => {
@@ -129,11 +158,12 @@ const buildLines = (meeting: IMeeting): PdfLine[] => {
     lines.push({ text: group, size: 12, bold: true });
     groupItems.forEach((item) => {
       const agendaNo = [item.sectionTag, item.itemNumber].filter(Boolean).join(' / ');
-      lines.push({ text: `${agendaNo} - ${item.subject}`, size: 11, bold: true });
-      normalizeBlocks(item).forEach((block: any) => {
+      lines.push({ text: `Item ${agendaNo || String(item.order + 1).padStart(2, '0')} - ${item.subject}`, size: 11, bold: true });
+      normalizeBlocks(item).filter(hasBlockValue).forEach((block: any) => {
         if (block.type === 'table') {
+          const table = compactTable(block.value);
           lines.push({ text: block.label, size: 10, bold: true, indent: 12 });
-          lines.push({ text: '', size: 9, indent: 24, table: block.value });
+          lines.push({ text: '', size: 9, indent: 24, table });
           return;
         }
         lines.push({ text: block.label, size: 10, bold: true, indent: 12 });

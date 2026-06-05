@@ -296,7 +296,7 @@ export default function MomPage() {
 
   const openAiFillPage = async () => {
     if (isConfirmed) {
-      setNotice({ message: "This MoM is confirmed and locked. AI fill is no longer available.", type: "error" });
+      setNotice({ message: "This MoM is confirmed and locked. Transcript fill is no longer available.", type: "error" });
       return;
     }
     const saved = await saveMom("Draft");
@@ -402,7 +402,7 @@ export default function MomPage() {
         {isConfirmed && (
           <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-900/20 dark:text-emerald-200">
             <Lock size={18} />
-            This MoM is confirmed and locked. No further edits, agenda changes, AI fills, or approvals can be made.
+            This MoM is confirmed and locked. No further edits, agenda changes, transcript fills, or approvals can be made.
           </div>
         )}
 
@@ -551,7 +551,7 @@ export default function MomPage() {
                 </button>
                 <button onClick={openAiFillPage} disabled={isSaving} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-500/20 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
                   <Sparkles size={16} />
-                  Fill Remaining Boxes with AI
+                  Fill Remaining Boxes from Transcript
                 </button>
               </>
             )}
@@ -744,6 +744,34 @@ function normalizeTableValue(value: MomBlock["value"]) {
   return { columns: ["Column 1", "Column 2"], rows: [["", ""]] };
 }
 
+function compactTableValue(value: MomBlock["value"]) {
+  const table = normalizeTableValue(value);
+  const visibleColumnIndexes = table.columns
+    .map((column, index) => ({ column, index }))
+    .filter(({ column, index }) => column.trim() || table.rows.some((row) => String(row[index] || "").trim()))
+    .map(({ index }) => index);
+  const rows = table.rows
+    .map((row) => visibleColumnIndexes.map((index) => String(row[index] || "")))
+    .filter((row) => row.some((cell) => cell.trim()));
+
+  return {
+    columns: visibleColumnIndexes.map((index) => table.columns[index] || `Column ${index + 1}`),
+    rows,
+  };
+}
+
+function hasBlockDisplayValue(block: MomBlock) {
+  if (block.type === "table") {
+    const table = compactTableValue(block.value);
+    return table.columns.length > 0 && table.rows.length > 0;
+  }
+  return stripHtml(String(block.value || "")).length > 0;
+}
+
+function visibleBlocks(item: MomAgendaItem) {
+  return normalizeBlocks(item).filter(hasBlockDisplayValue);
+}
+
 function getBlockText(item: MomAgendaItem, type: MomBlockType) {
   const block = normalizeBlocks(item).find((currentBlock) => currentBlock.type === type);
   if (!block || block.type === "table") return "";
@@ -752,9 +780,9 @@ function getBlockText(item: MomAgendaItem, type: MomBlockType) {
 
 function getBlockDisplayValue(block: MomBlock) {
   if (block.type === "table") return "";
-  if (block.type === "backgroundNote" || block.type === "decision") return stripHtml(String(block.value || "")) || "-";
-  if (block.type === "targetDate") return formatDate(String(block.value || "")) || "-";
-  return String(block.value || "").trim() || "-";
+  if (block.type === "backgroundNote" || block.type === "decision") return stripHtml(String(block.value || ""));
+  if (block.type === "targetDate") return formatDate(String(block.value || ""));
+  return String(block.value || "").trim();
 }
 
 function mergeAgendaModuleItems(existingItems: MomAgendaItem[], agendaModuleItems: MeetingAgenda[]) {
@@ -919,20 +947,24 @@ async function exportMomPdf(meeting: MomMeeting) {
     groupItems.forEach((item, index) => {
       const agendaNo = [item.sectionTag, item.itemNumber || String(index + 1).padStart(2, "0")].filter(Boolean).join(" / ");
       y = ensureSpace(doc, y, 150, meeting);
+      const itemStartY = y - 16;
       doc.setFont("times", "bold");
       doc.setFontSize(11);
       doc.setTextColor(0, 0, 0);
-      const titleLines = doc.splitTextToSize(`${agendaNo ? `${agendaNo}. ` : ""}${item.subject || "Untitled agenda item"}`, pageWidth - margin * 2);
+      const titleLines = doc.splitTextToSize(`${agendaNo ? `Item ${agendaNo}. ` : `Item ${String(index + 1).padStart(2, "0")}. `}${item.subject || "Untitled agenda item"}`, pageWidth - margin * 2 - 16);
       doc.text(titleLines, margin, y);
       y += titleLines.length * 14 + 8;
 
-      normalizeBlocks(item).forEach((block) => {
+      visibleBlocks(item).forEach((block) => {
         if (block.type === "table") {
           y = writeOfficialTable(doc, block, margin + 14, y, pageWidth, meeting);
           return;
         }
         y = writeOfficialBlock(doc, block.label, getBlockDisplayValue(block), margin, y, pageWidth, meeting);
       });
+      doc.setDrawColor(190, 198, 208);
+      doc.setLineWidth(0.4);
+      doc.rect(margin - 8, itemStartY, pageWidth - margin * 2 + 16, Math.max(36, y - itemStartY), "S");
       y += 10;
     });
   });
@@ -951,19 +983,29 @@ async function exportMomPdf(meeting: MomMeeting) {
   doc.setTextColor(20, 35, 60);
   doc.text("Action Taken Summary", margin, 94);
 
+  const actionRows = agendaItems
+    .map((item, index) => ({
+      agendaNo: item.itemNumber || String(index + 1).padStart(2, "0"),
+      decisionAction: stripHtml(getBlockText(item, "decision")) || getBlockText(item, "actionRequired"),
+      responsibility: getBlockText(item, "responsiblePerson"),
+      targetDate: formatDate(getBlockText(item, "targetDate")),
+    }))
+    .filter((row) => row.decisionAction || row.responsibility || row.targetDate);
+  const actionColumns = [
+    { header: "Agenda No.", key: "agendaNo", visible: true },
+    { header: "Decision / Action", key: "decisionAction", visible: actionRows.some((row) => row.decisionAction) },
+    { header: "Responsibility", key: "responsibility", visible: actionRows.some((row) => row.responsibility) },
+    { header: "Target Date", key: "targetDate", visible: actionRows.some((row) => row.targetDate) },
+  ].filter((column) => column.visible);
+
   autoTable(doc, {
     startY: 112,
     theme: "grid",
     margin: { left: margin, right: margin },
-    head: [["Agenda No.", "Decision / Action", "Responsibility", "Target Date"]],
-    body: agendaItems.length
-      ? agendaItems.map((item, index) => [
-          item.itemNumber || String(index + 1).padStart(2, "0"),
-          stripHtml(getBlockText(item, "decision")) || getBlockText(item, "actionRequired") || "-",
-          getBlockText(item, "responsiblePerson") || "-",
-          formatDate(getBlockText(item, "targetDate")) || "-",
-        ])
-      : [["-", "No action items recorded", "-", "-"]],
+    head: [actionColumns.map((column) => column.header)],
+    body: actionRows.length
+      ? actionRows.map((row) => actionColumns.map((column) => row[column.key as keyof typeof row] || "-"))
+      : [actionColumns.map((_, index) => index === 0 ? "No action items recorded" : "-")],
     styles: { font: "times", fontSize: 9, cellPadding: 5, valign: "top", lineColor: [190, 198, 208], lineWidth: 0.4, textColor: [25, 35, 50] },
     headStyles: { fillColor: [21, 45, 78], textColor: [255, 255, 255], fontStyle: "bold" },
     columnStyles: {
@@ -1026,11 +1068,13 @@ function exportMomWord(meeting: MomMeeting) {
       ${groupItems.map((item, index) => {
         const agendaNo = [item.sectionTag, item.itemNumber || String(index + 1).padStart(2, "0")].filter(Boolean).join(" / ");
         return `
-          <h3>${escapeHtml(`${agendaNo ? `${agendaNo}. ` : ""}${item.subject || "Untitled agenda item"}`)}</h3>
-          ${normalizeBlocks(item).map((block) => {
+          <div class="agenda-box">
+          <h3>${escapeHtml(`${agendaNo ? `Item ${agendaNo}. ` : `Item ${String(index + 1).padStart(2, "0")}. `}${item.subject || "Untitled agenda item"}`)}</h3>
+          ${visibleBlocks(item).map((block) => {
             if (block.type === "table") return tableBlockToHtml(block);
             return `<p class="block"><strong>${escapeHtml(block.label)}:</strong> ${escapeHtml(getBlockDisplayValue(block)).replace(/\n/g, "<br>")}</p>`;
           }).join("")}
+          </div>
         `;
       }).join("")}
     `;
@@ -1050,7 +1094,8 @@ function exportMomWord(meeting: MomMeeting) {
           .meta, .members, .data-table { border-collapse: collapse; width: 100%; margin: 8pt 0 16pt; }
           .meta td, .members th, .members td, .data-table th, .data-table td { border: 1px solid #b9c1cc; padding: 5pt; vertical-align: top; }
           .meta td:first-child, .members th, .data-table th { font-weight: bold; background: #f2f6fa; }
-          .block { margin: 6pt 0 8pt 18pt; }
+          .agenda-box { border: 1px solid #b9c1cc; padding: 8pt; margin: 8pt 0 12pt; }
+          .block { border-top: 1px solid #d5dbe3; margin: 8pt 0 8pt; padding: 5pt 0 0; }
           .footer { mso-element: footer; text-align: center; color: #5b6472; font-size: 9pt; }
         </style>
       </head>
@@ -1092,7 +1137,8 @@ function exportMomWord(meeting: MomMeeting) {
 }
 
 function tableBlockToHtml(block: MomBlock) {
-  const table = normalizeTableValue(block.value);
+  const table = compactTableValue(block.value);
+  if (!table.columns.length || !table.rows.length) return "";
   return `
     <p class="block"><strong>${escapeHtml(block.label)}:</strong></p>
     <table class="data-table">
@@ -1221,7 +1267,11 @@ function writeOfficialBlock(doc: jsPDF, label: string, value: string, margin: nu
   doc.setFontSize(9.5);
   doc.setTextColor(80, 90, 105);
   doc.text(label, margin, y);
-  y += 14;
+  y += 5;
+  doc.setDrawColor(210, 218, 228);
+  doc.setLineWidth(0.35);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 12;
 
   doc.setFont("times", "normal");
   doc.setFontSize(10);
@@ -1229,7 +1279,7 @@ function writeOfficialBlock(doc: jsPDF, label: string, value: string, margin: nu
   const lines = doc.splitTextToSize(value, pageWidth - margin * 2);
   lines.forEach((line: string) => {
     y = ensureSpace(doc, y, 18, meeting);
-    doc.text(line, margin + 14, y);
+    doc.text(line, margin, y);
     y += 13;
   });
 
@@ -1237,7 +1287,8 @@ function writeOfficialBlock(doc: jsPDF, label: string, value: string, margin: nu
 }
 
 function writeOfficialTable(doc: jsPDF, block: MomBlock, margin: number, y: number, pageWidth: number, meeting: MomMeeting) {
-  const table = normalizeTableValue(block.value);
+  const table = compactTableValue(block.value);
+  if (!table.columns.length || !table.rows.length) return y;
   y = ensureSpace(doc, y, 90, meeting);
   doc.setFont("times", "bold");
   doc.setFontSize(9.5);

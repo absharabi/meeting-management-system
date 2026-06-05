@@ -44,10 +44,10 @@ export default function MeetingAISummary({ meetingId, meeting, onUpdated, momMod
         }
       );
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Unable to load meeting AI summary.");
+      if (!response.ok) throw new Error(data.message || "Unable to load meeting summary.");
       setLocalMeeting(momMode ? data : data.find((item: any) => item._id === meetingId) || null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load meeting AI summary.");
+      setError(err instanceof Error ? err.message : "Unable to load meeting summary.");
     } finally {
       setIsLoadingMeeting(false);
     }
@@ -122,11 +122,11 @@ export default function MeetingAISummary({ meetingId, meeting, onUpdated, momMod
 
   const generateMomDraft = async () => {
     if (!displayedMeeting?.aiSummary && !displayedMeeting?.aiKeyPoints?.length) {
-      setError("Generate an AI summary before creating a MoM draft.");
+      setError("Generate a meeting summary before creating a MoM draft.");
       return;
     }
     if (momMode && !isCoverComplete(displayedMeeting?.momCoverDetails)) {
-      window.alert("Please complete the cover page details before approving the AI-filled MoM.");
+      window.alert("Please complete the cover page details before approving the filled MoM.");
       return;
     }
 
@@ -156,7 +156,7 @@ export default function MeetingAISummary({ meetingId, meeting, onUpdated, momMod
 
       setLocalMeeting(data.meeting);
       onUpdated?.(data.meeting);
-      setNotice("AI filled the remaining MoM boxes. Opening the review and export page...");
+      setNotice("The remaining MoM boxes were filled. Opening the review and export page...");
       if (momMode) {
         router.push(`/meetings/${meetingId}/mom`);
       }
@@ -172,11 +172,11 @@ export default function MeetingAISummary({ meetingId, meeting, onUpdated, momMod
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-            {momMode ? "AI-assisted Minutes of Meeting" : "AI Meeting Summary"}
+            {momMode ? "Minutes of Meeting Draft" : "Meeting Summary"}
           </h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             {momMode
-              ? "Use the meeting details and agenda already in the MoM, then let AI fill the remaining boxes from the post-meeting transcript."
+              ? "Use the meeting details and agenda already in the MoM, then fill the remaining boxes from the post-meeting transcript."
               : "Upload a transcript first, or use audio/video once Whisper and FFmpeg are ready."}
           </p>
         </div>
@@ -199,7 +199,7 @@ export default function MeetingAISummary({ meetingId, meeting, onUpdated, momMod
             disabled={isDraftingMom || (!displayedMeeting?.aiSummary && !displayedMeeting?.aiKeyPoints?.length)}
             className="rounded-xl border border-blue-200 px-4 py-2.5 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-900/60 dark:text-blue-300 dark:hover:bg-blue-900/20"
           >
-            {isDraftingMom ? "Filling Boxes..." : "Approve AI Fill"}
+            {isDraftingMom ? "Filling Boxes..." : "Approve Fill"}
           </button>
           {momMode && (
             <button
@@ -238,7 +238,7 @@ export default function MeetingAISummary({ meetingId, meeting, onUpdated, momMod
         ) : (
           <>
             <SummaryBlock title="Summary">
-              {isLoadingMeeting ? "Loading..." : displayedMeeting?.aiSummary || "No AI summary generated yet."}
+              {isLoadingMeeting ? "Loading..." : displayedMeeting?.aiSummary || "No meeting summary generated yet."}
             </SummaryBlock>
             <SummaryList title="Key Points" items={displayedMeeting?.aiKeyPoints || []} />
             <SummaryList title="Decisions" items={displayedMeeting?.aiDecisions || []} />
