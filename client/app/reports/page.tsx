@@ -263,7 +263,7 @@ export default function ReportsPage() {
         alternateRowStyles: { fillColor: [249, 250, 251] },
       });
       
-      doc.save(`Report_${activeTab}_${new Date().getTime()}.pdf`);
+      doc.save(`Report_${activeTab}.pdf`);
 
     } else if (activeTab === 'meeting' && meetingReport) {
       const { meeting, metrics, agendas, actionItems } = meetingReport;
@@ -417,32 +417,41 @@ export default function ReportsPage() {
       const taskRows = (actionItems || []).map((task: any) => [
         task.title,
         task.assigneeId?.name || 'Unassigned',
-        task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'N/A',
-        task.status
+        task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'N/A'
       ]);
       
       autoTable(doc, {
         startY: finalY + 5,
-        head: [['Task Description', 'Assigned To', 'Deadline', 'Status']],
-        body: taskRows.length > 0 ? taskRows : [['No action items assigned.', '-', '-', '-']],
+        head: [['Task Description', 'Assigned To', 'Deadline']],
+        body: taskRows.length > 0 ? taskRows : [['No action items assigned.', '-', '-']],
         theme: 'striped',
         headStyles: { fillColor: themeSecondary, textColor: 255 },
       });
 
-      // 9. Signatures
-      finalY = (doc as any).lastAutoTable.finalY + 30;
-      if (finalY > 270) { doc.addPage(); finalY = 40; }
+      // 9. Approvals / Signatures
+      finalY = (doc as any).lastAutoTable.finalY + 20;
+      if (finalY > 260) { doc.addPage(); finalY = 30; }
       
-      doc.setDrawColor(themeSecondary[0], themeSecondary[1], themeSecondary[2]);
-      doc.line(14, finalY, 74, finalY);
-      doc.line(130, finalY, 190, finalY);
-      
+      doc.setFontSize(12);
+      doc.setTextColor(themePrimary[0], themePrimary[1], themePrimary[2]);
+      doc.text('Verified/Approved By', 14, finalY);
+
+      finalY += 10;
       doc.setFontSize(10);
       doc.setTextColor(themeSecondary[0], themeSecondary[1], themeSecondary[2]);
-      doc.text('Organizer Signature', 14, finalY + 6);
-      doc.text('Approver Signature', 130, finalY + 6);
 
-      doc.save(`Report_${meeting.title.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`);
+      const approvals = meeting?.momApprovals?.filter((a: any) => a.status === 'Approved') || [];
+      
+      if (approvals.length > 0) {
+        // List people who approved
+        const approvalText = approvals.map((a: any) => `- ${a.user?.name || 'Unknown User'}`).join('\n');
+        doc.text(`Electronically Approved By:\n${approvalText}`, 14, finalY);
+      } else {
+        // Fallback for old meetings or meetings without approvals
+        doc.text(`Electronically Approved By:\n- ${meeting.organizerId?.name || 'Organizer'} (Organizer Default)`, 14, finalY);
+      }
+
+      doc.save(`Report_${meeting.title.replace(/\s+/g, '_')}.pdf`);
     }
   };
 
@@ -491,8 +500,7 @@ export default function ReportsPage() {
       const tasksData = (actionItems || []).map((task: any) => ({
         Task: task.title,
         "Assigned To": task.assigneeId?.name || 'Unassigned',
-        Deadline: task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'N/A',
-        Status: task.status
+        Deadline: task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'N/A'
       }));
       if (tasksData.length > 0) {
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(tasksData), "Action Items");

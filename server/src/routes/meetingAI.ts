@@ -132,6 +132,16 @@ router.post('/:id/summary', upload.single('meetingFile'), async (req: Request, r
       return;
     }
 
+    const requestingUser = (req as any).user;
+    if (
+      meeting.organizerId.toString() !== requestingUser.id &&
+      requestingUser.role !== 'Admin' &&
+      requestingUser.role !== 'SuperAdmin'
+    ) {
+      res.status(403).json({ message: 'Only the organizer or an admin can generate an AI summary.' });
+      return;
+    }
+
     const ext = path.extname(req.file.originalname).toLowerCase();
     const transcript = (await getTranscriptFromUpload(req.file.path, ext)).trim();
     if (!transcript) {
@@ -176,6 +186,16 @@ router.post('/:id/mom-draft', async (req: Request, res: Response): Promise<void>
     const meeting = await Meeting.findById(req.params.id);
     if (!meeting) {
       res.status(404).json({ message: 'Meeting not found.' });
+      return;
+    }
+
+    const requestingUser = (req as any).user;
+    if (
+      meeting.organizerId.toString() !== requestingUser.id &&
+      requestingUser.role !== 'Admin' &&
+      requestingUser.role !== 'SuperAdmin'
+    ) {
+      res.status(403).json({ message: 'Only the organizer or an admin can modify the MoM.' });
       return;
     }
 

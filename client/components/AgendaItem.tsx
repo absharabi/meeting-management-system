@@ -82,9 +82,14 @@ export default function AgendaItem({ agenda, index, isOrganizerOrAdmin, onApprov
           </div>
         </div>
         <div className="text-gray-500 dark:text-gray-400 text-sm mt-1 prose prose-sm dark:prose-invert" dangerouslySetInnerHTML={{ __html: agenda.description || '' }} />
-        <div className="flex gap-4 mt-3 text-xs text-gray-500 dark:text-gray-400 font-medium">
+        <div className="flex flex-wrap gap-4 mt-3 text-xs text-gray-500 dark:text-gray-400 font-medium">
           <span className="flex items-center gap-1"><ClockIcon size={14} /> {agenda.timeAllocated} mins</span>
           <span className="flex items-center gap-1"><Users size={14} /> Proposed by: {agenda.proposedBy?.name || 'Unknown'}</span>
+          {agenda.createdAt && (
+            <span className="flex items-center gap-1 border-l border-gray-300 dark:border-gray-600 pl-4">
+              <ClockIcon size={14} /> on {new Date(agenda.createdAt).toLocaleDateString()} at {new Date(agenda.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
         </div>
       </div>
     </div>

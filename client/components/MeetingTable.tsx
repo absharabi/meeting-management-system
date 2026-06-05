@@ -398,14 +398,18 @@ export default function MeetingTable({
                                 <FileText size={14} /> Minutes of Meeting
                               </Link>
                               
-                              <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                              <Link
-                                href={`/meetings/${meeting._id}/edit`}
-                                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 w-full text-left"
-                                onClick={() => setOpenDropdownId(null)}
-                              >
-                                <Edit size={14} /> Edit
-                              </Link>
+                              {meeting.status !== 'Completed' && (
+                                <>
+                                  <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                                  <Link
+                                    href={`/meetings/${meeting._id}/edit`}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 w-full text-left"
+                                    onClick={() => setOpenDropdownId(null)}
+                                  >
+                                    <Edit size={14} /> Edit
+                                  </Link>
+                                </>
+                              )}
                               <button
                                 onClick={() => { setOpenDropdownId(null); handleDelete(meeting._id); }}
                                 className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left"
@@ -453,16 +457,13 @@ export default function MeetingTable({
             <div className="p-6 overflow-y-auto flex-1">
               <p className="text-sm text-gray-500 mb-4 font-medium uppercase tracking-wider">Participant List</p>
               {(() => {
-                const acceptedParticipants = attendanceModalMeeting.participants?.filter((p: any) => p.status === 'Accepted') || [];
-                if (!attendanceModalMeeting.participants || attendanceModalMeeting.participants.length === 0) {
+                const participantsToMark = attendanceModalMeeting.participants || [];
+                if (participantsToMark.length === 0) {
                   return <p className="text-gray-500">No participants invited.</p>;
-                }
-                if (acceptedParticipants.length === 0) {
-                  return <p className="text-gray-500">No participants have accepted the invitation yet.</p>;
                 }
                 return (
                   <div className="space-y-3">
-                    {acceptedParticipants.map((p: any) => {
+                    {participantsToMark.map((p: any) => {
                       const user = p.user;
                       if (!user) return null;
                       return (

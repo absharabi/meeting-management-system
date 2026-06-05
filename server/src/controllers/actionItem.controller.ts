@@ -5,11 +5,27 @@ import mongoose from 'mongoose';
 
 export const createActionItem = async (req: Request, res: Response): Promise<void> => {
   try {
+    const requestingUser = (req as any).user;
     const { title, description, meetingId, assigneeId, dueDate } = req.body;
     
     // Quick validation
     if (!title || !meetingId || !assigneeId) {
       res.status(400).json({ message: 'Title, meetingId, and assigneeId are required' });
+      return;
+    }
+
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      res.status(404).json({ message: 'Meeting not found' });
+      return;
+    }
+
+    if (
+      meeting.organizerId.toString() !== requestingUser.id &&
+      requestingUser.role !== 'Admin' &&
+      requestingUser.role !== 'SuperAdmin'
+    ) {
+      res.status(403).json({ message: 'Only the meeting organizer or an admin can create action items' });
       return;
     }
 
@@ -56,19 +72,33 @@ export const getMeetingActionItems = async (req: Request, res: Response): Promis
 
 export const updateActionItemStatus = async (req: Request, res: Response): Promise<void> => {
   try {
+    const requestingUser = (req as any).user;
     const { id } = req.params;
     const { status } = req.body;
+
+    const existingItem = await ActionItem.findById(id).populate('meetingId');
+    if (!existingItem) {
+      res.status(404).json({ message: 'Action item not found' });
+      return;
+    }
+
+    const meeting = existingItem.meetingId as any;
+
+    if (
+      existingItem.assigneeId.toString() !== requestingUser.id &&
+      meeting.organizerId.toString() !== requestingUser.id &&
+      requestingUser.role !== 'Admin' &&
+      requestingUser.role !== 'SuperAdmin'
+    ) {
+      res.status(403).json({ message: 'You do not have permission to update this action item' });
+      return;
+    }
 
     const item = await ActionItem.findByIdAndUpdate(
       id, 
       { status }, 
       { new: true }
     ).populate('meetingId', 'title');
-
-    if (!item) {
-      res.status(404).json({ message: 'Action item not found' });
-      return;
-    }
 
     res.status(200).json(item);
   } catch (error) {
@@ -78,7 +108,26 @@ export const updateActionItemStatus = async (req: Request, res: Response): Promi
 
 export const deleteActionItem = async (req: Request, res: Response): Promise<void> => {
   try {
+    const requestingUser = (req as any).user;
     const { id } = req.params;
+    
+    const existingItem = await ActionItem.findById(id).populate('meetingId');
+    if (!existingItem) {
+      res.status(404).json({ message: 'Action item not found' });
+      return;
+    }
+
+    const meeting = existingItem.meetingId as any;
+
+    if (
+      meeting.organizerId.toString() !== requestingUser.id &&
+      requestingUser.role !== 'Admin' &&
+      requestingUser.role !== 'SuperAdmin'
+    ) {
+      res.status(403).json({ message: 'Only the meeting organizer or an admin can delete action items' });
+      return;
+    }
+
     await ActionItem.findByIdAndDelete(id);
     res.status(200).json({ message: 'Deleted successfully' });
   } catch (error) {

@@ -19,7 +19,8 @@ export const getMeetingReport = async (req: Request, res: Response): Promise<voi
     const meeting = await Meeting.findOne(meetingQuery)
       .populate('organizerId', 'name email role')
       .populate('participants.user', 'name email role')
-      .populate('attendance', 'name email role');
+      .populate('attendance', 'name email role')
+      .populate('momApprovals.user', 'name');
 
     if (!meeting) {
       res.status(404).json({ message: 'Meeting not found matching that name or ID' });

@@ -314,6 +314,11 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    if (target.status === MeetingStatus.Completed) {
+      res.status(400).json({ message: 'Cannot edit a meeting that is already completed.' });
+      return;
+    }
+
     if (!isGlobalAdmin(requestingUser.role) && target.organizerId.toString() !== requestingUser.id) {
       res.status(403).json({ message: 'You do not have permission to edit this meeting' });
       return;

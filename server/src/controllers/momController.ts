@@ -163,6 +163,17 @@ export const saveMom = async (req: Request, res: Response): Promise<void> => {
       res.status(404).json({ message: 'Meeting not found' });
       return;
     }
+
+    const requestingUser = (req as any).user;
+    if (
+      target.organizerId.toString() !== requestingUser.id &&
+      requestingUser.role !== 'Admin' &&
+      requestingUser.role !== 'SuperAdmin'
+    ) {
+      res.status(403).json({ message: 'Only the organizer or an admin can modify the MoM.' });
+      return;
+    }
+
     if (target.momStatus === MomStatus.Confirmed) {
       res.status(423).json({ message: 'This MoM is confirmed and can no longer be changed.' });
       return;
@@ -209,6 +220,17 @@ export const patchMom = async (req: Request, res: Response): Promise<void> => {
       res.status(404).json({ message: 'Meeting not found' });
       return;
     }
+
+    const requestingUser = (req as any).user;
+    if (
+      target.organizerId.toString() !== requestingUser.id &&
+      requestingUser.role !== 'Admin' &&
+      requestingUser.role !== 'SuperAdmin'
+    ) {
+      res.status(403).json({ message: 'Only the organizer or an admin can modify the MoM.' });
+      return;
+    }
+
     if (target.momStatus === MomStatus.Confirmed) {
       res.status(423).json({ message: 'This MoM is confirmed and can no longer be changed.' });
       return;

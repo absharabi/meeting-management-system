@@ -21,14 +21,25 @@ export const createAgenda = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    // Verify user is part of the meeting
+    const isParticipant = meeting.participants.some((p: any) => p.user.toString() === requestingUser.id);
+    const isOrganizer = meeting.organizerId.toString() === requestingUser.id;
+    const isAdmin = requestingUser.role === 'Admin' || requestingUser.role === 'SuperAdmin';
+
+    if (!isParticipant && !isOrganizer && !isAdmin) {
+      res.status(403).json({ message: 'You must be invited to this meeting to propose an agenda item' });
+      return;
+    }
+
     // Enforce 24-hour deadline for proposing agenda items
-    const meetingDateStr = meeting.date.toISOString().split('T')[0];
+    const meetingDate = new Date(meeting.date);
+    const meetingDateStr = `${meetingDate.getFullYear()}-${String(meetingDate.getMonth()+1).padStart(2,'0')}-${String(meetingDate.getDate()).padStart(2,'0')}`;
     const startTimeStr = meeting.startTime || '00:00';
     const meetingStartDateTime = new Date(`${meetingDateStr}T${startTimeStr}:00`);
     const now = new Date();
     const hoursDiff = (meetingStartDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
     
-    if (hoursDiff < 24 && meeting.organizerId.toString() !== requestingUser.id) {
+    if (hoursDiff < 24) {
       res.status(400).json({ message: 'Agenda items can only be proposed up to 24 hours before the meeting.' });
       return;
     }
@@ -43,7 +54,7 @@ export const createAgenda = async (req: Request, res: Response): Promise<void> =
       status,
     });
 
-    if (meeting.organizerId.toString() !== requestingUser.id) {
+    if (!isOrganizer) {
       const organizer = await User.findById(meeting.organizerId);
       if (
         organizer && 
@@ -85,24 +96,40 @@ export const updateAgendaStatus = async (req: Request, res: Response): Promise<v
     const agendaId = req.params.id;
     const { status } = req.body;
 
-    const agenda = await Agenda.findByIdAndUpdate(
-      agendaId, 
-      { status }, 
-      { new: true }
-    ).populate('proposedBy', 'name email');
-
-    if (!agenda) {
-      res.status(404).json({ message: 'Agenda not found' });
-      return;
-    }
-
     const requestingUser = (req as any).user;
     if (!requestingUser) {
       res.status(401).json({ message: 'Unauthorized' });
       return;
     }
 
-    if (agenda.proposedBy && agenda.proposedBy._id.toString() !== requestingUser.id) {
+    const existingAgenda = await Agenda.findById(agendaId);
+    if (!existingAgenda) {
+      res.status(404).json({ message: 'Agenda not found' });
+      return;
+    }
+
+    const meeting = await Meeting.findById(existingAgenda.meetingId);
+    if (!meeting) {
+      res.status(404).json({ message: 'Meeting not found' });
+      return;
+    }
+
+    if (
+      meeting.organizerId.toString() !== requestingUser.id &&
+      requestingUser.role !== 'Admin' &&
+      requestingUser.role !== 'SuperAdmin'
+    ) {
+      res.status(403).json({ message: 'Only the meeting organizer or an admin can update agenda status' });
+      return;
+    }
+
+    const agenda = await Agenda.findByIdAndUpdate(
+      agendaId, 
+      { status }, 
+      { new: true }
+    ).populate('proposedBy', 'name email');
+
+    if (agenda?.proposedBy && agenda.proposedBy._id.toString() !== requestingUser.id) {
       const proposer = await User.findById(agenda.proposedBy._id);
       if (
         proposer && 
@@ -129,11 +156,29 @@ export const updateAgendaStatus = async (req: Request, res: Response): Promise<v
 
 export const deleteAgenda = async (req: Request, res: Response): Promise<void> => {
   try {
-    const deleted = await Agenda.findByIdAndDelete(req.params.id);
-    if (!deleted) {
+    const requestingUser = (req as any).user;
+    const existingAgenda = await Agenda.findById(req.params.id);
+    if (!existingAgenda) {
       res.status(404).json({ message: 'Agenda not found' });
       return;
     }
+
+    const meeting = await Meeting.findById(existingAgenda.meetingId);
+    if (!meeting) {
+      res.status(404).json({ message: 'Meeting not found' });
+      return;
+    }
+
+    const isProposer = existingAgenda.proposedBy.toString() === requestingUser.id;
+    const isOrganizer = meeting.organizerId.toString() === requestingUser.id;
+    const isAdmin = requestingUser.role === 'Admin' || requestingUser.role === 'SuperAdmin';
+
+    if (!isProposer && !isOrganizer && !isAdmin) {
+      res.status(403).json({ message: 'You do not have permission to delete this agenda item' });
+      return;
+    }
+
+    await Agenda.findByIdAndDelete(req.params.id);
     res.json({ message: 'Agenda item deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Server error while deleting agenda', error });
@@ -142,9 +187,31 @@ export const deleteAgenda = async (req: Request, res: Response): Promise<void> =
 
 export const reorderAgendas = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { items } = req.body; // array of { id: string, sequence: number }
-    if (!items || !Array.isArray(items)) {
+    const requestingUser = (req as any).user;
+    const { items } = req.body;
+    if (!items || !Array.isArray(items) || items.length === 0) {
       res.status(400).json({ message: 'Invalid payload format' });
+      return;
+    }
+
+    const sampleAgenda = await Agenda.findById(items[0].id);
+    if (!sampleAgenda) {
+      res.status(404).json({ message: 'Agenda not found' });
+      return;
+    }
+
+    const meeting = await Meeting.findById(sampleAgenda.meetingId);
+    if (!meeting) {
+      res.status(404).json({ message: 'Meeting not found' });
+      return;
+    }
+
+    if (
+      meeting.organizerId.toString() !== requestingUser.id &&
+      requestingUser.role !== 'Admin' &&
+      requestingUser.role !== 'SuperAdmin'
+    ) {
+      res.status(403).json({ message: 'Only the meeting organizer or an admin can reorder agendas' });
       return;
     }
 

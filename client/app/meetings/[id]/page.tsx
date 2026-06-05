@@ -313,8 +313,8 @@ export default function MeetingDetailsPage() {
 
   const isAgendaProposalAllowed = (() => {
     if (!meeting) return false;
-    if (isOrganizerOrAdmin) return true;
-    const meetingDateStr = new Date(meeting.date).toISOString().split('T')[0];
+    const meetingDate = new Date(meeting.date);
+    const meetingDateStr = `${meetingDate.getFullYear()}-${String(meetingDate.getMonth()+1).padStart(2,'0')}-${String(meetingDate.getDate()).padStart(2,'0')}`;
     const startTimeStr = meeting.startTime || '00:00';
     const meetingStartDateTime = new Date(`${meetingDateStr}T${startTimeStr}:00`);
     const now = new Date();

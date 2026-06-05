@@ -31,7 +31,11 @@ export default function EditMeetingPage() {
         const meeting = data.find((m: any) => m._id === meetingId);
         
         if (meeting) {
-          setInitialData(meeting);
+          if (meeting.status === 'Completed') {
+            setError('Cannot edit a meeting that is already completed.');
+          } else {
+            setInitialData(meeting);
+          }
         } else {
           setError('Meeting not found');
         }
