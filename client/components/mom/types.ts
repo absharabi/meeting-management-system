@@ -1,5 +1,26 @@
 export type SectionGroup = "Procedural" | "Consideration & Approval" | "Reporting" | "Any Other Matter";
 export type MomStatus = "Draft" | "Confirmed";
+export type MomBlockType =
+  | "backgroundNote"
+  | "decision"
+  | "actionRequired"
+  | "responsiblePerson"
+  | "targetDate"
+  | "annexureReference"
+  | "status"
+  | "table"
+  | "customField";
+
+export interface MomTableValue {
+  columns: string[];
+  rows: string[][];
+}
+
+export interface MomBlock {
+  type: MomBlockType;
+  label: string;
+  value: string | MomTableValue;
+}
 
 export interface MemberPresent {
   name: string;
@@ -32,6 +53,7 @@ export interface MomAgendaItem {
   actionRequired: string;
   responsiblePerson: string;
   targetDate?: string;
+  blocks?: MomBlock[];
   order: number;
 }
 
@@ -62,7 +84,7 @@ export interface MomMeeting {
   endTime?: string;
   meetingType?: string;
   mode?: string;
-  organizerId?: MomUser | string | any;
+  organizerId?: MomUser | string | null;
   participants?: MomParticipant[];
   membersPresent: MemberPresent[];
   agendaItems: MomAgendaItem[];

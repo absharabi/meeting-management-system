@@ -1,8 +1,35 @@
 "use client";
 
-import { MomAgendaItem } from "./types";
+import { MomAgendaItem, MomBlock, MomBlockType } from "./types";
 
 const stripHtml = (value: string) => value.replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim();
+
+const blockLabels: Record<MomBlockType, string> = {
+  backgroundNote: "Background Note",
+  decision: "Decision",
+  actionRequired: "Action Required",
+  responsiblePerson: "Responsible Person",
+  targetDate: "Target Date",
+  annexureReference: "Annexure Reference",
+  status: "Status",
+  table: "Table",
+  customField: "Custom Field",
+};
+
+function blocksForItem(item: MomAgendaItem): MomBlock[] {
+  if (Array.isArray(item.blocks) && item.blocks.length) return item.blocks;
+  return [
+    { type: "decision", label: blockLabels.decision, value: item.decision || "" },
+    { type: "actionRequired", label: blockLabels.actionRequired, value: item.actionRequired || "" },
+    { type: "responsiblePerson", label: blockLabels.responsiblePerson, value: item.responsiblePerson || "" },
+    { type: "targetDate", label: blockLabels.targetDate, value: item.targetDate || "" },
+  ];
+}
+
+function blockText(item: MomAgendaItem, type: MomBlockType) {
+  const value = blocksForItem(item).find((block) => block.type === type)?.value;
+  return typeof value === "string" ? value : "";
+}
 
 export default function SummaryTable({ items }: { items: MomAgendaItem[] }) {
   const sortedItems = [...items].sort((a, b) => a.order - b.order);
@@ -32,10 +59,10 @@ export default function SummaryTable({ items }: { items: MomAgendaItem[] }) {
                 <td className="px-4 py-3 font-semibold text-gray-900 dark:text-white">{index + 1}</td>
                 <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{item.itemNumber || "-"}</td>
                 <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{item.subject || "-"}</td>
-                <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{stripHtml(item.decision) || "-"}</td>
-                <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{item.actionRequired || "-"}</td>
-                <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{item.responsiblePerson || "-"}</td>
-                <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{item.targetDate ? new Date(item.targetDate).toLocaleDateString() : "-"}</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{stripHtml(blockText(item, "decision")) || "-"}</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{blockText(item, "actionRequired") || "-"}</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{blockText(item, "responsiblePerson") || "-"}</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{blockText(item, "targetDate") ? new Date(blockText(item, "targetDate")).toLocaleDateString() : "-"}</td>
               </tr>
             ))}
             {sortedItems.length === 0 && (
