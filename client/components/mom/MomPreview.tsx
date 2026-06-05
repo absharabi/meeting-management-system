@@ -1,6 +1,6 @@
 "use client";
 
-import { MomMeeting } from "./types";
+import { MomAgendaItem, MomBlock, MomMeeting } from "./types";
 
 const groups = ["Procedural", "Consideration & Approval", "Reporting", "Any Other Matter"];
 
@@ -64,8 +64,11 @@ export default function MomPreview({ meeting }: { meeting: MomMeeting }) {
                   <article key={item._id || `${item.itemNumber}-${index}`} className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
                     <p className="text-sm font-bold text-blue-700 dark:text-blue-300">{[item.sectionTag, item.itemNumber].filter(Boolean).join(" / ")}</p>
                     <h4 className="mt-1 font-bold text-gray-900 dark:text-white">{item.subject}</h4>
-                    <PreviewBlock title="Background" html={item.backgroundNote} />
-                    <PreviewBlock title="Decision" html={item.decision} />
+                    {blocksForItem(item).map((block, blockIndex) => (
+                      block.type === "table"
+                        ? <PreviewTable key={`${block.label}-${blockIndex}`} block={block} />
+                        : <PreviewBlock key={`${block.label}-${blockIndex}`} title={block.label} html={block.type === "backgroundNote" || block.type === "decision" ? String(block.value || "") : `<p>${String(block.value || "-")}</p>`} />
+                    ))}
                   </article>
                 ))}
               </div>
@@ -82,6 +85,37 @@ function PreviewBlock({ title, html }: { title: string; html: string }) {
     <div className="mt-3">
       <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">{title}</p>
       <div className="prose prose-sm mt-1 max-w-none text-gray-600 dark:prose-invert dark:text-gray-300" dangerouslySetInnerHTML={{ __html: html || "<p>-</p>" }} />
+    </div>
+  );
+}
+
+function blocksForItem(item: MomAgendaItem): MomBlock[] {
+  if (Array.isArray(item.blocks) && item.blocks.length) return item.blocks;
+  return [
+    { type: "backgroundNote", label: "Background Note", value: item.backgroundNote || "" },
+    { type: "decision", label: "Decision", value: item.decision || "" },
+    { type: "actionRequired", label: "Action Required", value: item.actionRequired || "" },
+    { type: "responsiblePerson", label: "Responsible Person", value: item.responsiblePerson || "" },
+    { type: "targetDate", label: "Target Date", value: item.targetDate || "" },
+  ];
+}
+
+function PreviewTable({ block }: { block: MomBlock }) {
+  const value = typeof block.value === "object" && block.value ? block.value : { columns: [], rows: [] };
+
+  return (
+    <div className="mt-3 overflow-x-auto">
+      <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">{block.label}</p>
+      <table className="mt-2 w-full text-left text-sm">
+        <thead className="bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+          <tr>{value.columns.map((column, index) => <th key={`${column}-${index}`} className="px-3 py-2">{column || "-"}</th>)}</tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+          {value.rows.map((row, rowIndex) => (
+            <tr key={`row-${rowIndex}`}>{value.columns.map((_, columnIndex) => <td key={`cell-${rowIndex}-${columnIndex}`} className="px-3 py-2">{row[columnIndex] || "-"}</td>)}</tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

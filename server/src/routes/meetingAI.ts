@@ -96,6 +96,50 @@ const parseDeadline = (value?: string) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
+const blockLabels: Record<string, string> = {
+  backgroundNote: 'Background Note',
+  decision: 'Decision',
+  actionRequired: 'Action Required',
+  responsiblePerson: 'Responsible Person',
+  targetDate: 'Target Date',
+  annexureReference: 'Annexure Reference',
+  status: 'Status',
+  table: 'Table',
+  customField: 'Custom Field',
+};
+
+const presetBlockTypes: Record<string, string[]> = {
+  Procedural: ['backgroundNote', 'decision'],
+  'Consideration & Approval': ['backgroundNote', 'decision', 'actionRequired', 'responsiblePerson', 'targetDate'],
+  Reporting: ['backgroundNote', 'decision', 'status'],
+  'Any Other Matter': ['backgroundNote', 'decision'],
+};
+
+const normalizeBlockValue = (block: any) => block?.type === 'table'
+  ? {
+      columns: Array.isArray(block.value?.columns) ? block.value.columns.map(String) : ['Column 1', 'Column 2'],
+      rows: Array.isArray(block.value?.rows) ? block.value.rows.map((row: any) => Array.isArray(row) ? row.map(String) : []) : [['', '']],
+    }
+  : String(block?.value || '');
+
+const createBlocks = (item: any, values: Record<string, any> = {}) => {
+  if (Array.isArray(item.blocks) && item.blocks.length) {
+    const valueByType = new Map(Object.entries(values));
+    return item.blocks.map((block: any) => ({
+      type: block.type || 'customField',
+      label: block.label || blockLabels[block.type] || 'Field',
+      value: valueByType.has(block.type) ? valueByType.get(block.type) : normalizeBlockValue(block),
+    }));
+  }
+
+  const sectionGroup = item.sectionGroup || 'Procedural';
+  return (presetBlockTypes[sectionGroup] || presetBlockTypes.Procedural).map((type) => ({
+    type,
+    label: blockLabels[type],
+    value: values[type] || item[type] || (type === 'status' ? 'Pending' : ''),
+  }));
+};
+
 const buildAgendaItemsFromModule = async (meetingId: string) => {
   const agendas = await Agenda.find({ meetingId }).sort({ sequence: 1 });
   return agendas.map((agenda: any, index) => ({
@@ -109,6 +153,7 @@ const buildAgendaItemsFromModule = async (meetingId: string) => {
     actionRequired: '',
     responsiblePerson: '',
     targetDate: null,
+    blocks: createBlocks({ sectionGroup: 'Procedural', backgroundNote: agenda.description || '' }),
     order: index,
   }));
 };
@@ -222,6 +267,7 @@ router.post('/:id/mom-draft', async (req: Request, res: Response): Promise<void>
       actionRequired: '',
       responsiblePerson: '',
       targetDate: null,
+      blocks: createBlocks({ sectionGroup: 'Reporting' }),
       order: 0,
     }];
 
@@ -229,6 +275,14 @@ router.post('/:id/mom-draft', async (req: Request, res: Response): Promise<void>
       const actionItem = meeting.aiActionItems?.[index];
       const decision = meeting.aiDecisions?.[index] || (index === 0 ? meeting.aiDecisions?.join('\n') : '');
       const targetDate = item.targetDate || parseDeadline(actionItem?.deadline);
+      const targetDateString = targetDate ? new Date(targetDate).toISOString().slice(0, 10) : '';
+      const values = {
+        backgroundNote: item.backgroundNote || fallbackBackground,
+        decision: item.decision || decision || '',
+        actionRequired: item.actionRequired || actionItem?.task || '',
+        responsiblePerson: item.responsiblePerson || actionItem?.owner || '',
+        targetDate: targetDateString,
+      };
 
       return {
         sourceAgendaId: item.sourceAgendaId || null,
@@ -236,10 +290,11 @@ router.post('/:id/mom-draft', async (req: Request, res: Response): Promise<void>
         sectionTag: item.sectionTag || '',
         sectionGroup: item.sectionGroup || 'Procedural',
         subject: item.subject || actionItem?.task || `Agenda item ${index + 1}`,
-        backgroundNote: item.backgroundNote || fallbackBackground,
-        decision: item.decision || decision || '',
-        actionRequired: item.actionRequired || actionItem?.task || '',
-        responsiblePerson: item.responsiblePerson || actionItem?.owner || '',
+        blocks: createBlocks(item, values),
+        backgroundNote: values.backgroundNote,
+        decision: values.decision,
+        actionRequired: values.actionRequired,
+        responsiblePerson: values.responsiblePerson,
         targetDate,
         order: index,
       };

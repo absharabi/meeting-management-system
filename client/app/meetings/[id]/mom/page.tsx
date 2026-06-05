@@ -10,12 +10,24 @@ import autoTable from "jspdf-autotable";
 import "react-quill-new/dist/quill.snow.css";
 import AgendaItemForm from "@/components/mom/AgendaItemForm";
 import SummaryTable from "@/components/mom/SummaryTable";
-import { MemberPresent, MomAgendaItem, MomApprovalStatus, MomCoverDetails, MomMeeting, MomStatus } from "@/components/mom/types";
+import { MemberPresent, MomAgendaItem, MomApprovalStatus, MomBlock, MomBlockType, MomCoverDetails, MomMeeting, MomStatus } from "@/components/mom/types";
 
 const API_BASE = "http://localhost:5000/api/meetings";
 const inputClass = "w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-800 dark:bg-gray-950 dark:text-white";
 const logoPaths = ["/mom/nitc-logo.png", "/mom/nitc-logo.png.png"];
 const buildingPaths = ["/mom/nitc-building.jpg", "/mom/nitc-building.jpeg"];
+
+interface CurrentUser {
+  id?: string;
+  _id?: string;
+  role?: string;
+}
+
+type JsPdfWithAutoTable = jsPDF & {
+  lastAutoTable?: {
+    finalY?: number;
+  };
+};
 
 const emptyAgendaItem = (order: number): MomAgendaItem => ({
   _id: `local-${Date.now()}-${order}`,
@@ -29,6 +41,7 @@ const emptyAgendaItem = (order: number): MomAgendaItem => ({
   actionRequired: "",
   responsiblePerson: "",
   targetDate: "",
+  blocks: createPresetBlocks("Procedural"),
   order,
 });
 
@@ -52,7 +65,7 @@ export default function MomPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const [meeting, setMeeting] = useState<MomMeeting | null>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [membersPresent, setMembersPresent] = useState<MemberPresent[]>([]);
   const [agendaItems, setAgendaItems] = useState<MomAgendaItem[]>([]);
   const [momCoverDetails, setMomCoverDetails] = useState<MomCoverDetails>(defaultCoverDetails());
@@ -100,16 +113,22 @@ export default function MomPage() {
   }, [params.id]);
 
   useEffect(() => {
-    loadMom();
+    queueMicrotask(() => {
+      void loadMom();
+    });
   }, [loadMom]);
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (!storedUser) return;
     try {
-      setCurrentUser(JSON.parse(storedUser));
+      queueMicrotask(() => {
+        setCurrentUser(JSON.parse(storedUser));
+      });
     } catch {
-      setCurrentUser(null);
+      queueMicrotask(() => {
+        setCurrentUser(null);
+      });
     }
   }, []);
 
@@ -124,7 +143,7 @@ export default function MomPage() {
   const isOrganizerOrAdmin = Boolean(currentUser && meeting && (
     currentUser.role === "SuperAdmin" || 
     currentUser.role === "Admin" || 
-    meeting.organizerId?._id === currentUserId ||
+    getOrganizerId(meeting.organizerId) === currentUserId ||
     meeting.organizerId === currentUserId
   ));
   const canEdit = isOrganizerOrAdmin && !isConfirmed;
@@ -132,7 +151,7 @@ export default function MomPage() {
   const previewMeeting = useMemo<MomMeeting | null>(() => {
     if (!meeting) return null;
     return { ...meeting, membersPresent: deriveMembersFromParticipants(meeting), agendaItems, momCoverDetails, momStatus };
-  }, [agendaItems, meeting, membersPresent, momCoverDetails, momStatus]);
+  }, [agendaItems, meeting, momCoverDetails, momStatus]);
 
   const saveMom = async (status: MomStatus = momStatus) => {
     if (isConfirmed) {
@@ -156,7 +175,7 @@ export default function MomPage() {
         agendaItems: agendaItems.map((item, index) => {
           const { _id, ...rest } = item;
           return {
-            ...rest,
+            ...normalizeAgendaItemForBlocks(rest as MomAgendaItem),
             ...(_id && !_id.startsWith("local-") ? { _id } : {}),
             order: index,
           };
@@ -175,7 +194,7 @@ export default function MomPage() {
       setMeeting(data);
       setMembersPresent(deriveMembersFromParticipants(data));
       setMomCoverDetails(mergeCoverDetails(data, data.momCoverDetails));
-      setAgendaItems((data.agendaItems || []).sort((a: MomAgendaItem, b: MomAgendaItem) => a.order - b.order));
+      setAgendaItems(normalizeAgendaItems(data.agendaItems || []));
       setMomStatus(data.momStatus || status);
       setNotice({ message: status === "Confirmed" ? "MoM confirmed." : "MoM draft saved.", type: "success" });
       return true;
@@ -207,6 +226,29 @@ export default function MomPage() {
       setNotice({ message: "MoM PDF downloaded.", type: "success" });
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : "Unable to export PDF.", type: "error" });
+    }
+  };
+
+  const exportWord = () => {
+    if (!isCoverComplete(momCoverDetails)) {
+      window.alert("Please complete the cover page details before exporting the MoM.");
+      return;
+    }
+    if (!allApproved) {
+      window.alert(`Everyone in the meeting must approve before export. Pending: ${pendingApprovals.map((approval) => approval.name).join(", ") || "No reviewers found"}.`);
+      return;
+    }
+    if (!isConfirmed) {
+      window.alert("Confirm the MoM before exporting. Confirming locks the document.");
+      return;
+    }
+    if (!previewMeeting) return;
+
+    try {
+      exportMomWord(previewMeeting);
+      setNotice({ message: "MoM Word document downloaded.", type: "success" });
+    } catch (error) {
+      setNotice({ message: error instanceof Error ? error.message : "Unable to export Word document.", type: "error" });
     }
   };
 
@@ -267,7 +309,7 @@ export default function MomPage() {
       setMeeting(data);
       setMembersPresent(deriveMembersFromParticipants(data));
       setMomCoverDetails(mergeCoverDetails(data, data.momCoverDetails));
-      setAgendaItems((data.agendaItems || []).sort((a: MomAgendaItem, b: MomAgendaItem) => a.order - b.order));
+      setAgendaItems(normalizeAgendaItems(data.agendaItems || []));
       setMomStatus(data.momStatus || "Draft");
       setNotice({ message: "Your MoM approval has been recorded.", type: "success" });
     } catch (error) {
@@ -331,6 +373,10 @@ export default function MomPage() {
               <button onClick={exportPdf} className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/20">
                 <Download size={16} />
                 Export PDF
+              </button>
+              <button onClick={exportWord} className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/20">
+                <Download size={16} />
+                Export Word
               </button>
             </div>
           </div>
@@ -606,27 +652,128 @@ function isCoverComplete(details: MomCoverDetails) {
   );
 }
 
+function getOrganizerId(organizer: MomMeeting["organizerId"]) {
+  return typeof organizer === "string" ? organizer : organizer?._id || organizer?.id || "";
+}
+
+const blockLabels: Record<MomBlockType, string> = {
+  backgroundNote: "Background Note",
+  decision: "Decision",
+  actionRequired: "Action Required",
+  responsiblePerson: "Responsible Person",
+  targetDate: "Target Date",
+  annexureReference: "Annexure Reference",
+  status: "Status",
+  table: "Table",
+  customField: "Custom Field",
+};
+
+const presetBlockTypes: Record<MomAgendaItem["sectionGroup"], MomBlockType[]> = {
+  "Procedural": ["backgroundNote", "decision"],
+  "Consideration & Approval": ["backgroundNote", "decision", "actionRequired", "responsiblePerson", "targetDate"],
+  "Reporting": ["backgroundNote", "decision", "status"],
+  "Any Other Matter": ["backgroundNote", "decision"],
+};
+
+function createPresetBlocks(sectionGroup: MomAgendaItem["sectionGroup"], values: Partial<Record<MomBlockType, string>> = {}) {
+  return presetBlockTypes[sectionGroup].map((type) => ({
+    type,
+    label: blockLabels[type],
+    value: values[type] || (type === "status" ? "Pending" : ""),
+  }));
+}
+
+function normalizeBlocks(item: MomAgendaItem): MomBlock[] {
+  if (Array.isArray(item.blocks) && item.blocks.length) {
+    return item.blocks.map((block) => ({
+      type: block.type,
+      label: block.label || blockLabels[block.type] || "Field",
+      value: block.type === "table" ? normalizeTableValue(block.value) : String(block.value || ""),
+    }));
+  }
+
+  return createPresetBlocks(item.sectionGroup || "Procedural", {
+    backgroundNote: item.backgroundNote || "",
+    decision: item.decision || "",
+    actionRequired: item.actionRequired || "",
+    responsiblePerson: item.responsiblePerson || "",
+    targetDate: item.targetDate || "",
+  });
+}
+
+function normalizeAgendaItemForBlocks(item: MomAgendaItem): MomAgendaItem {
+  const blocks = normalizeBlocks(item);
+  const getBlockValue = (type: MomBlockType) => String(blocks.find((block) => block.type === type)?.value || "");
+
+  return {
+    ...item,
+    blocks,
+    backgroundNote: getBlockValue("backgroundNote"),
+    decision: getBlockValue("decision"),
+    actionRequired: getBlockValue("actionRequired"),
+    responsiblePerson: getBlockValue("responsiblePerson"),
+    targetDate: getBlockValue("targetDate"),
+  };
+}
+
+function normalizeAgendaItems(items: MomAgendaItem[]) {
+  return [...items]
+    .sort((a, b) => a.order - b.order)
+    .map((item, index) => normalizeAgendaItemForBlocks({ ...item, order: index }));
+}
+
+function normalizeTableValue(value: MomBlock["value"]) {
+  if (typeof value === "object" && value && Array.isArray(value.columns) && Array.isArray(value.rows)) {
+    return {
+      columns: value.columns.map(String),
+      rows: value.rows.map((row) => Array.isArray(row) ? row.map(String) : []),
+    };
+  }
+
+  return { columns: ["Column 1", "Column 2"], rows: [["", ""]] };
+}
+
+function getBlockText(item: MomAgendaItem, type: MomBlockType) {
+  const block = normalizeBlocks(item).find((currentBlock) => currentBlock.type === type);
+  if (!block || block.type === "table") return "";
+  return String(block.value || "");
+}
+
+function getBlockDisplayValue(block: MomBlock) {
+  if (block.type === "table") return "";
+  if (block.type === "backgroundNote" || block.type === "decision") return stripHtml(String(block.value || "")) || "-";
+  if (block.type === "targetDate") return formatDate(String(block.value || "")) || "-";
+  return String(block.value || "").trim() || "-";
+}
+
 function mergeAgendaModuleItems(existingItems: MomAgendaItem[], agendaModuleItems: MeetingAgenda[]) {
   const agendaById = new Map(agendaModuleItems.map((agenda) => [agenda._id, agenda]));
   const sortedExisting = [...existingItems]
     .sort((a, b) => a.order - b.order)
     .map((item) => {
-      const sourceAgenda = item.sourceAgendaId ? agendaById.get(item.sourceAgendaId) : null;
-      if (!sourceAgenda) return item;
+      const sourceAgendaKey = item.sourceAgendaId ? String(item.sourceAgendaId) : "";
+      const sourceAgenda = sourceAgendaKey ? agendaById.get(sourceAgendaKey) : null;
+      if (!sourceAgenda) return normalizeAgendaItemForBlocks(item);
 
-      return {
+      const updatedBlocks = normalizeBlocks(item).map((block) => (
+        block.type === "backgroundNote"
+          ? { ...block, value: sourceAgenda.description || String(block.value || "") }
+          : block
+      ));
+      return normalizeAgendaItemForBlocks({
         ...item,
         itemNumber: item.itemNumber || String(sourceAgenda.sequence || item.order + 1).padStart(2, "0"),
         subject: sourceAgenda.title || item.subject,
         backgroundNote: sourceAgenda.description || item.backgroundNote,
-      };
+        blocks: updatedBlocks,
+      });
     });
-  const existingBySource = new Set(sortedExisting.map((item) => item.sourceAgendaId).filter(Boolean));
+  const existingBySource = new Set(sortedExisting.map((item) => item.sourceAgendaId ? String(item.sourceAgendaId) : "").filter(Boolean));
   const agendaItems = [...agendaModuleItems].sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
 
   const importedItems = agendaItems
     .filter((agenda) => !existingBySource.has(agenda._id))
-    .map((agenda, index) => ({
+    .map((agenda, index) => normalizeAgendaItemForBlocks({
       _id: `local-agenda-${agenda._id}`,
       sourceAgendaId: agenda._id,
       itemNumber: String((agenda.sequence || index + 1)).padStart(2, "0"),
@@ -711,7 +858,7 @@ async function exportMomPdf(meeting: MomMeeting) {
     ],
   });
 
-  y = ((doc as any).lastAutoTable?.finalY || y) + 30;
+  y = ((doc as JsPdfWithAutoTable).lastAutoTable?.finalY || y) + 30;
   doc.setFont("times", "bold");
   doc.setFontSize(13);
   doc.text("Members Present", margin, y);
@@ -736,7 +883,7 @@ async function exportMomPdf(meeting: MomMeeting) {
     didDrawPage: () => drawPageHeader(doc, meeting, doc.getNumberOfPages()),
   });
 
-  y = ((doc as any).lastAutoTable?.finalY || y) + 30;
+  y = ((doc as JsPdfWithAutoTable).lastAutoTable?.finalY || y) + 30;
   y = ensureSpace(doc, y, 120, meeting);
   doc.setFont("times", "bold");
   doc.setFontSize(13);
@@ -768,17 +915,13 @@ async function exportMomPdf(meeting: MomMeeting) {
       doc.text(titleLines, margin, y);
       y += titleLines.length * 14 + 8;
 
-      y = writeOfficialBlock(doc, "Background / Note", stripHtml(item.backgroundNote) || "-", margin, y, pageWidth, meeting);
-      y = writeOfficialBlock(doc, "Resolution / Decision", stripHtml(item.decision) || "-", margin, y, pageWidth, meeting);
-      y = writeOfficialBlock(
-        doc,
-        "Action Required",
-        `${item.actionRequired || "-"}\nResponsible: ${item.responsiblePerson || "-"}\nTarget date: ${formatDate(item.targetDate) || "-"}`,
-        margin,
-        y,
-        pageWidth,
-        meeting
-      );
+      normalizeBlocks(item).forEach((block) => {
+        if (block.type === "table") {
+          y = writeOfficialTable(doc, block, margin + 14, y, pageWidth, meeting);
+          return;
+        }
+        y = writeOfficialBlock(doc, block.label, getBlockDisplayValue(block), margin, y, pageWidth, meeting);
+      });
       y += 10;
     });
   });
@@ -805,9 +948,9 @@ async function exportMomPdf(meeting: MomMeeting) {
     body: agendaItems.length
       ? agendaItems.map((item, index) => [
           item.itemNumber || String(index + 1).padStart(2, "0"),
-          stripHtml(item.decision) || item.actionRequired || "-",
-          item.responsiblePerson || "-",
-          formatDate(item.targetDate) || "-",
+          stripHtml(getBlockText(item, "decision")) || getBlockText(item, "actionRequired") || "-",
+          getBlockText(item, "responsiblePerson") || "-",
+          formatDate(getBlockText(item, "targetDate")) || "-",
         ])
       : [["-", "No action items recorded", "-", "-"]],
     styles: { font: "times", fontSize: 9, cellPadding: 5, valign: "top", lineColor: [190, 198, 208], lineWidth: 0.4, textColor: [25, 35, 50] },
@@ -821,7 +964,7 @@ async function exportMomPdf(meeting: MomMeeting) {
     didDrawPage: () => drawPageHeader(doc, meeting, doc.getNumberOfPages()),
   });
 
-  y = ((doc as any).lastAutoTable?.finalY || 112) + 44;
+  y = ((doc as JsPdfWithAutoTable).lastAutoTable?.finalY || 112) + 44;
   y = ensureSpace(doc, y, 120, meeting);
   doc.setFont("times", "normal");
   doc.setFontSize(10);
@@ -856,6 +999,98 @@ async function exportMomPdf(meeting: MomMeeting) {
   doc.save(`${meeting.title.replace(/[^a-z0-9]+/gi, "-") || "mom"}.pdf`);
 }
 
+function exportMomWord(meeting: MomMeeting) {
+  const cover = { ...defaultCoverDetails(meeting), ...(meeting.momCoverDetails || {}) };
+  const agendaItems = [...(meeting.agendaItems || [])].sort((a, b) => a.order - b.order);
+  const groups: MomAgendaItem["sectionGroup"][] = ["Procedural", "Consideration & Approval", "Reporting", "Any Other Matter"];
+  const approvalStatus = meeting.momApprovalStatus || [];
+  const approvedMembers = approvalStatus.filter((approval) => approval.approved);
+
+  const agendaHtml = groups.map((group) => {
+    const groupItems = agendaItems.filter((item) => item.sectionGroup === group);
+    if (!groupItems.length) return "";
+
+    return `
+      <h2>${escapeHtml(group)}</h2>
+      ${groupItems.map((item, index) => {
+        const agendaNo = [item.sectionTag, item.itemNumber || String(index + 1).padStart(2, "0")].filter(Boolean).join(" / ");
+        return `
+          <h3>${escapeHtml(`${agendaNo ? `${agendaNo}. ` : ""}${item.subject || "Untitled agenda item"}`)}</h3>
+          ${normalizeBlocks(item).map((block) => {
+            if (block.type === "table") return tableBlockToHtml(block);
+            return `<p class="block"><strong>${escapeHtml(block.label)}:</strong> ${escapeHtml(getBlockDisplayValue(block)).replace(/\n/g, "<br>")}</p>`;
+          }).join("")}
+        `;
+      }).join("")}
+    `;
+  }).join("");
+
+  const html = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8">
+        <style>
+          @page { margin: 0.7in; }
+          body { font-family: "Times New Roman", serif; color: #111827; font-size: 11pt; line-height: 1.35; }
+          h1 { font-size: 18pt; text-align: center; margin: 0 0 18pt; }
+          h2 { font-size: 13pt; background: #eef3f8; color: #153654; padding: 6pt; margin: 18pt 0 8pt; }
+          h3 { font-size: 12pt; margin: 12pt 0 6pt; }
+          .header { text-align: center; font-weight: bold; text-transform: uppercase; margin-bottom: 18pt; }
+          .meta, .members, .data-table { border-collapse: collapse; width: 100%; margin: 8pt 0 16pt; }
+          .meta td, .members th, .members td, .data-table th, .data-table td { border: 1px solid #b9c1cc; padding: 5pt; vertical-align: top; }
+          .meta td:first-child, .members th, .data-table th { font-weight: bold; background: #f2f6fa; }
+          .block { margin: 6pt 0 8pt 18pt; }
+          .footer { mso-element: footer; text-align: center; color: #5b6472; font-size: 9pt; }
+        </style>
+      </head>
+      <body>
+        <div class="header">National Institute of Technology Calicut</div>
+        <h1>Minutes of Meeting</h1>
+        <table class="meta">
+          <tr><td>Meeting</td><td>${escapeHtml(`${cover.meetingNumber || "Nth"} Meeting of the ${cover.meetingBody || "Board of Governors"}`)}</td></tr>
+          <tr><td>Institute</td><td>${escapeHtml(cover.instituteName || "National Institute of Technology Calicut")}</td></tr>
+          <tr><td>Date</td><td>${escapeHtml(cover.dateLine || formatDate(meeting.date))}</td></tr>
+          <tr><td>Venue / Mode</td><td>${escapeHtml(cover.venueLine || meeting.venue || meeting.link || "Not specified")}</td></tr>
+          <tr><td>Status</td><td>${escapeHtml(meeting.momStatus || "Draft")}</td></tr>
+        </table>
+        <h2>Members Present</h2>
+        <table class="members">
+          <tr><th>Sl. No.</th><th>Name</th><th>Designation</th><th>Mode</th></tr>
+          ${(meeting.membersPresent.length ? meeting.membersPresent : [{ name: "No members recorded", designation: "-", attendanceMode: "-" }]).map((member, index) => `
+            <tr><td>${index + 1}</td><td>${escapeHtml(member.name || "-")}</td><td>${escapeHtml(member.designation || "-")}</td><td>${escapeHtml(member.attendanceMode || "-")}</td></tr>
+          `).join("")}
+        </table>
+        ${agendaHtml || "<p>No agenda items recorded.</p>"}
+        <p>The meeting ended with thanks to the Chair.</p>
+        <h2>Approved By</h2>
+        ${approvedMembers.length ? approvedMembers.map((member) => `<p>${escapeHtml(`${member.name} (${member.department || "Member"})`)}</p>`).join("") : "<p>No approvals recorded.</p>"}
+        <div class="footer">Minutes of Meeting</div>
+      </body>
+    </html>
+  `;
+
+  const blob = new Blob(["\ufeff", html], { type: "application/msword" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${meeting.title.replace(/[^a-z0-9]+/gi, "-") || "mom"}.doc`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function tableBlockToHtml(block: MomBlock) {
+  const table = normalizeTableValue(block.value);
+  return `
+    <p class="block"><strong>${escapeHtml(block.label)}:</strong></p>
+    <table class="data-table">
+      <tr>${table.columns.map((column) => `<th>${escapeHtml(column || "-")}</th>`).join("")}</tr>
+      ${table.rows.map((row) => `<tr>${table.columns.map((_, index) => `<td>${escapeHtml(row[index] || "")}</td>`).join("")}</tr>`).join("")}
+    </table>
+  `;
+}
+
 function stripHtml(value = "") {
   return value
     .replace(/<br\s*\/?>/gi, "\n")
@@ -867,6 +1102,15 @@ function stripHtml(value = "") {
     .replace(/&gt;/g, ">")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function escapeHtml(value = "") {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function formatDate(value?: string | Date | null) {
@@ -979,6 +1223,30 @@ function writeOfficialBlock(doc: jsPDF, label: string, value: string, margin: nu
   });
 
   return y + 6;
+}
+
+function writeOfficialTable(doc: jsPDF, block: MomBlock, margin: number, y: number, pageWidth: number, meeting: MomMeeting) {
+  const table = normalizeTableValue(block.value);
+  y = ensureSpace(doc, y, 90, meeting);
+  doc.setFont("times", "bold");
+  doc.setFontSize(9.5);
+  doc.setTextColor(80, 90, 105);
+  doc.text(block.label, margin - 14, y);
+  y += 8;
+
+  autoTable(doc, {
+    startY: y,
+    theme: "grid",
+    margin: { left: margin, right: 48 },
+    head: [table.columns.map((column) => column || "-")],
+    body: table.rows.length ? table.rows.map((row) => table.columns.map((_, index) => row[index] || "")) : [table.columns.map(() => "")],
+    styles: { font: "times", fontSize: 9, cellPadding: 4, lineColor: [190, 198, 208], lineWidth: 0.4, textColor: [25, 35, 50] },
+    headStyles: { fillColor: [242, 246, 250], textColor: [25, 35, 50], fontStyle: "bold" },
+    tableWidth: pageWidth - margin - 48,
+    didDrawPage: () => drawPageHeader(doc, meeting, doc.getNumberOfPages()),
+  });
+
+  return ((doc as JsPdfWithAutoTable).lastAutoTable?.finalY || y) + 12;
 }
 
 function addPageNumbers(doc: jsPDF, meeting: MomMeeting) {

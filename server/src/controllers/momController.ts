@@ -81,18 +81,85 @@ const withDerivedMomMembers = (meeting: any) => {
   };
 };
 
+const blockLabels: Record<string, string> = {
+  backgroundNote: 'Background Note',
+  decision: 'Decision',
+  actionRequired: 'Action Required',
+  responsiblePerson: 'Responsible Person',
+  targetDate: 'Target Date',
+  annexureReference: 'Annexure Reference',
+  status: 'Status',
+  table: 'Table',
+  customField: 'Custom Field',
+};
+
+const presetBlockTypes: Record<string, string[]> = {
+  Procedural: ['backgroundNote', 'decision'],
+  'Consideration & Approval': ['backgroundNote', 'decision', 'actionRequired', 'responsiblePerson', 'targetDate'],
+  Reporting: ['backgroundNote', 'decision', 'status'],
+  'Any Other Matter': ['backgroundNote', 'decision'],
+};
+
+const createPresetBlocks = (sectionGroup: string, values: Record<string, any> = {}) => (
+  (presetBlockTypes[sectionGroup] || presetBlockTypes.Procedural).map((type) => ({
+    type,
+    label: blockLabels[type],
+    value: values[type] || (type === 'status' ? 'Pending' : ''),
+  }))
+);
+
+const normalizeBlockValue = (block: any) => {
+  if (block?.type === 'table') {
+    const value = block.value && typeof block.value === 'object' ? block.value : {};
+    return {
+      columns: Array.isArray(value.columns) && value.columns.length ? value.columns.map(String) : ['Column 1', 'Column 2'],
+      rows: Array.isArray(value.rows) && value.rows.length ? value.rows.map((row: any) => Array.isArray(row) ? row.map(String) : []) : [['', '']],
+    };
+  }
+  return String(block?.value || '');
+};
+
+const normalizeBlocks = (item: any) => {
+  if (Array.isArray(item.blocks) && item.blocks.length) {
+    return item.blocks.map((block: any) => ({
+      type: block.type || 'customField',
+      label: block.label || blockLabels[block.type] || 'Field',
+      value: normalizeBlockValue(block),
+    }));
+  }
+
+  return createPresetBlocks(item.sectionGroup || 'Procedural', {
+    backgroundNote: item.backgroundNote || '',
+    decision: item.decision || '',
+    actionRequired: item.actionRequired || '',
+    responsiblePerson: item.responsiblePerson || '',
+    targetDate: item.targetDate ? new Date(item.targetDate).toISOString().slice(0, 10) : '',
+  });
+};
+
+const getBlockString = (blocks: any[], type: string) => {
+  const value = blocks.find((block) => block.type === type)?.value;
+  return typeof value === 'string' ? value : '';
+};
+
 const normalizeAgendaItems = (items: any[] = []) => items.map((item, index) => ({
-  sourceAgendaId: item.sourceAgendaId || null,
-  itemNumber: item.itemNumber,
-  sectionTag: item.sectionTag || '',
-  sectionGroup: item.sectionGroup || 'Procedural',
-  subject: item.subject,
-  backgroundNote: item.backgroundNote || '',
-  decision: item.decision || '',
-  actionRequired: item.actionRequired || '',
-  responsiblePerson: item.responsiblePerson || '',
-  targetDate: item.targetDate || null,
-  order: typeof item.order === 'number' ? item.order : index,
+  ...(() => {
+    const blocks = normalizeBlocks(item);
+    return {
+      sourceAgendaId: item.sourceAgendaId || null,
+      itemNumber: item.itemNumber,
+      sectionTag: item.sectionTag || '',
+      sectionGroup: item.sectionGroup || 'Procedural',
+      subject: item.subject,
+      blocks,
+      backgroundNote: getBlockString(blocks, 'backgroundNote') || item.backgroundNote || '',
+      decision: getBlockString(blocks, 'decision') || item.decision || '',
+      actionRequired: getBlockString(blocks, 'actionRequired') || item.actionRequired || '',
+      responsiblePerson: getBlockString(blocks, 'responsiblePerson') || item.responsiblePerson || '',
+      targetDate: getBlockString(blocks, 'targetDate') || item.targetDate || null,
+      order: typeof item.order === 'number' ? item.order : index,
+    };
+  })(),
 }));
 
 const comparableAgendaItems = (items: any[] = []) => normalizeAgendaItems(items).map((item) => ({
@@ -101,6 +168,7 @@ const comparableAgendaItems = (items: any[] = []) => normalizeAgendaItems(items)
   sectionTag: item.sectionTag || '',
   sectionGroup: item.sectionGroup || 'Procedural',
   subject: item.subject || '',
+  blocks: normalizeBlocks(item),
   backgroundNote: item.backgroundNote || '',
   decision: item.decision || '',
   actionRequired: item.actionRequired || '',

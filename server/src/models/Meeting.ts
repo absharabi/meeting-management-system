@@ -65,6 +65,11 @@ export interface IMeeting extends Document {
     sectionTag?: string;
     sectionGroup: string;
     subject: string;
+    blocks?: {
+      type: string;
+      label: string;
+      value: any;
+    }[];
     backgroundNote: string;
     decision: string;
     actionRequired: string;
@@ -119,6 +124,16 @@ const AgendaItemSchema = new Schema(
       default: 'Procedural',
     },
     subject: { type: String, trim: true, default: '' },
+    blocks: {
+      type: [
+        {
+          type: { type: String, trim: true, default: '' },
+          label: { type: String, trim: true, default: '' },
+          value: { type: Schema.Types.Mixed, default: '' },
+        }
+      ],
+      default: []
+    },
     backgroundNote: { type: String, default: '' },
     decision: { type: String, default: '' },
     actionRequired: { type: String, trim: true, default: '' },

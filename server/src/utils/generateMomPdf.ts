@@ -5,6 +5,10 @@ type PdfLine = {
   size?: number;
   bold?: boolean;
   indent?: number;
+  table?: {
+    columns: string[];
+    rows: string[][];
+  };
 };
 
 const stripHtml = (value = '') => value
@@ -30,6 +34,47 @@ const formatDate = (value?: Date | string | null) => {
     month: 'short',
     year: 'numeric',
   });
+};
+
+const blockLabels: Record<string, string> = {
+  backgroundNote: 'Background Note',
+  decision: 'Decision',
+  actionRequired: 'Action Required',
+  responsiblePerson: 'Responsible Person',
+  targetDate: 'Target Date',
+  annexureReference: 'Annexure Reference',
+  status: 'Status',
+  table: 'Table',
+  customField: 'Custom Field',
+};
+
+const normalizeTable = (value: any) => ({
+  columns: Array.isArray(value?.columns) && value.columns.length ? value.columns.map(String) : ['Column 1', 'Column 2'],
+  rows: Array.isArray(value?.rows) && value.rows.length ? value.rows.map((row: any) => Array.isArray(row) ? row.map(String) : []) : [['', '']],
+});
+
+const normalizeBlocks = (item: any) => {
+  if (Array.isArray(item.blocks) && item.blocks.length) {
+    return item.blocks.map((block: any) => ({
+      type: block.type || 'customField',
+      label: block.label || blockLabels[block.type] || 'Field',
+      value: block.type === 'table' ? normalizeTable(block.value) : String(block.value || ''),
+    }));
+  }
+
+  return [
+    { type: 'backgroundNote', label: 'Background Note', value: item.backgroundNote || '' },
+    { type: 'decision', label: 'Decision', value: item.decision || '' },
+    { type: 'actionRequired', label: 'Action Required', value: item.actionRequired || '' },
+    { type: 'responsiblePerson', label: 'Responsible Person', value: item.responsiblePerson || '' },
+    { type: 'targetDate', label: 'Target Date', value: item.targetDate || '' },
+  ];
+};
+
+const blockDisplayValue = (block: any) => {
+  if (block.type === 'backgroundNote' || block.type === 'decision') return stripHtml(block.value) || '-';
+  if (block.type === 'targetDate') return formatDate(block.value) || '-';
+  return String(block.value || '').trim() || '-';
 };
 
 const wrapText = (text: string, maxChars: number) => {
@@ -85,13 +130,15 @@ const buildLines = (meeting: IMeeting): PdfLine[] => {
     groupItems.forEach((item) => {
       const agendaNo = [item.sectionTag, item.itemNumber].filter(Boolean).join(' / ');
       lines.push({ text: `${agendaNo} - ${item.subject}`, size: 11, bold: true });
-      lines.push({ text: 'Subject', size: 10, bold: true, indent: 12 });
-      lines.push({ text: item.subject || '-', size: 10, indent: 24 });
-      lines.push({ text: 'Background', size: 10, bold: true, indent: 12 });
-      lines.push({ text: stripHtml(item.backgroundNote) || '-', size: 10, indent: 24 });
-      lines.push({ text: 'Decision', size: 10, bold: true, indent: 12 });
-      lines.push({ text: stripHtml(item.decision) || '-', size: 10, indent: 24 });
-      lines.push({ text: `Action: ${item.actionRequired || '-'} | Responsible: ${item.responsiblePerson || '-'} | Target: ${formatDate(item.targetDate) || '-'}`, size: 9, indent: 12 });
+      normalizeBlocks(item).forEach((block: any) => {
+        if (block.type === 'table') {
+          lines.push({ text: block.label, size: 10, bold: true, indent: 12 });
+          lines.push({ text: '', size: 9, indent: 24, table: block.value });
+          return;
+        }
+        lines.push({ text: block.label, size: 10, bold: true, indent: 12 });
+        lines.push({ text: blockDisplayValue(block), size: 10, indent: 24 });
+      });
       lines.push({ text: ' ' });
     });
   });
@@ -135,6 +182,31 @@ const buildPageContent = (lines: PdfLine[], pageNumber: number, totalPages: numb
 
   let y = 760;
   lines.forEach((line) => {
+    if (line.table) {
+      const columns = line.table.columns.length ? line.table.columns : ['Column 1'];
+      const rows = line.table.rows.length ? line.table.rows : [columns.map(() => '')];
+      const indent = line.indent || 0;
+      const x = 50 + indent;
+      const tableWidth = 500 - indent;
+      const cellWidth = tableWidth / columns.length;
+      const rowHeight = 18;
+
+      const drawRow = (cells: string[], bold = false) => {
+        cells.forEach((cell, index) => {
+          const cellX = x + index * cellWidth;
+          commands.push('0.92 0.95 0.98 rg', `${cellX} ${y - 4} ${cellWidth} ${rowHeight} re ${bold ? 'f' : 'S'}`);
+          commands.push('0.72 0.76 0.80 RG', `${cellX} ${y - 4} ${cellWidth} ${rowHeight} re S`);
+          commands.push('BT', `/${bold ? 'F2' : 'F1'} 8 Tf`, '0 0 0 rg', `${cellX + 4} ${y + 6} Td`, `(${escapePdf(wrapText(String(cell || '-'), Math.max(8, Math.floor(cellWidth / 5)))[0] || '-')}) Tj`, 'ET');
+        });
+        y -= rowHeight;
+      };
+
+      drawRow(columns, true);
+      rows.forEach((row) => drawRow(columns.map((_, index) => row[index] || ''), false));
+      y -= 8;
+      return;
+    }
+
     const size = line.size || 10;
     const font = line.bold ? 'F2' : 'F1';
     const indent = line.indent || 0;
@@ -232,8 +304,8 @@ export const generateMomPdf = async (meeting: IMeeting): Promise<Buffer> => {
 
   sourceLines.forEach((line) => {
     const size = line.size || 10;
-    const wrappedCount = wrapText(line.text, 92).length;
-    const height = wrappedCount * (size + 5) + 3;
+    const wrappedCount = line.table ? (line.table.rows.length + 1) : wrapText(line.text, 92).length;
+    const height = line.table ? wrappedCount * 18 + 12 : wrappedCount * (size + 5) + 3;
     if (usedHeight + height > 700 && current.length) {
       pages.push(current);
       current = [];
