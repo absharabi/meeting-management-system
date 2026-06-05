@@ -311,6 +311,17 @@ export default function MeetingDetailsPage() {
     currentUser.role === 'Admin'
   );
 
+  const isAgendaProposalAllowed = (() => {
+    if (!meeting) return false;
+    if (isOrganizerOrAdmin) return true;
+    const meetingDateStr = new Date(meeting.date).toISOString().split('T')[0];
+    const startTimeStr = meeting.startTime || '00:00';
+    const meetingStartDateTime = new Date(`${meetingDateStr}T${startTimeStr}:00`);
+    const now = new Date();
+    const hoursDiff = (meetingStartDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+    return hoursDiff >= 24;
+  })();
+
   return (
     <div className="max-w-6xl mx-auto space-y-8 p-6">
       
@@ -467,33 +478,39 @@ export default function MeetingDetailsPage() {
           {/* Add Agenda Form */}
           <div className="bg-gray-50 dark:bg-gray-800/50 p-5 rounded-xl border border-gray-200 dark:border-gray-700 h-fit">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2"><Plus size={18} /> Propose Agenda Item</h3>
-            <form onSubmit={handleAddAgenda} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Topic Title *</label>
-                <input required type="text" value={newAgenda.title} onChange={e => setNewAgenda({...newAgenda, title: e.target.value})} className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 text-sm" placeholder="e.g. Q3 Marketing Review" />
+            {!isAgendaProposalAllowed ? (
+              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 rounded-lg border border-amber-200 dark:border-amber-800 text-sm">
+                Agenda items can only be proposed up to 24 hours before the meeting starts.
               </div>
-              <div className="mb-8">
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-                <div className="bg-white dark:bg-gray-900 pb-8">
-                  <ReactQuill theme="snow" value={newAgenda.description} onChange={(val) => setNewAgenda({...newAgenda, description: val})} className="h-24" />
+            ) : (
+              <form onSubmit={handleAddAgenda} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Topic Title *</label>
+                  <input required type="text" value={newAgenda.title} onChange={e => setNewAgenda({...newAgenda, title: e.target.value})} className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 text-sm" placeholder="e.g. Q3 Marketing Review" />
                 </div>
-              </div>
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Time (mins)</label>
-                  <input type="number" required min="5" value={newAgenda.timeAllocated} onChange={e => setNewAgenda({...newAgenda, timeAllocated: parseInt(e.target.value)})} className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 text-sm" />
+                <div className="mb-8">
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                  <div className="bg-white dark:bg-gray-900 pb-8">
+                    <ReactQuill theme="snow" value={newAgenda.description} onChange={(val) => setNewAgenda({...newAgenda, description: val})} className="h-24" />
+                  </div>
                 </div>
-                <div className="flex-1 flex items-end pb-2">
-                  <label className="flex items-center gap-2 text-sm text-red-600 font-medium cursor-pointer">
-                    <input type="checkbox" checked={newAgenda.isEmergency} onChange={e => setNewAgenda({...newAgenda, isEmergency: e.target.checked})} className="rounded text-red-600 focus:ring-red-500" />
-                    Emergency
-                  </label>
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Time (mins)</label>
+                    <input type="number" required min="5" value={newAgenda.timeAllocated} onChange={e => setNewAgenda({...newAgenda, timeAllocated: parseInt(e.target.value)})} className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 text-sm" />
+                  </div>
+                  <div className="flex-1 flex items-end pb-2">
+                    <label className="flex items-center gap-2 text-sm text-red-600 font-medium cursor-pointer">
+                      <input type="checkbox" checked={newAgenda.isEmergency} onChange={e => setNewAgenda({...newAgenda, isEmergency: e.target.checked})} className="rounded text-red-600 focus:ring-red-500" />
+                      Emergency
+                    </label>
+                  </div>
                 </div>
-              </div>
-              <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
-                Add to Agenda
-              </button>
-            </form>
+                <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+                  Add to Agenda
+                </button>
+              </form>
+            )}
           </div>
 
         </div>
@@ -549,26 +566,19 @@ export default function MeetingDetailsPage() {
           {/* Action Items List */}
           <div className="flex-1 p-5 overflow-y-auto border-b border-gray-100 dark:border-gray-800">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <CheckSquare className="text-blue-500" size={18} /> Meeting Action Items
+              <CheckSquare className="text-blue-500" size={18} /> Assigned Tasks
             </h3>
             
             {actionItems.length === 0 ? (
-              <p className="text-sm text-gray-500 italic text-center mt-8">No action items assigned yet.</p>
+              <p className="text-sm text-gray-500 italic text-center mt-8">No tasks assigned yet.</p>
             ) : (
               <div className="space-y-3">
                 {actionItems.map(item => (
-                  <div key={item._id} className={`p-3 rounded-lg border ${item.status === 'Done' ? 'bg-green-50/50 border-green-200 dark:bg-green-900/10 dark:border-green-800/30' : 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700'}`}>
+                  <div key={item._id} className="p-3 rounded-lg border bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700">
                     <div className="flex justify-between items-start mb-1">
-                      <h4 className={`text-sm font-medium ${item.status === 'Done' ? 'text-gray-500 line-through' : 'text-gray-900 dark:text-white'}`}>
+                      <h4 className="text-sm font-medium text-gray-900 dark:text-white">
                         {item.title}
                       </h4>
-                      {item.status === 'Done' ? (
-                        <CheckCircle size={16} className="text-green-500" />
-                      ) : (
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${item.status === 'In Progress' ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-700'}`}>
-                          {item.status}
-                        </span>
-                      )}
                     </div>
                     <div className="flex justify-between items-center text-xs text-gray-500 mt-2">
                       <span className="flex items-center gap-1">

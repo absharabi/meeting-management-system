@@ -2,16 +2,23 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { Sun, Moon, ArrowRight, Calendar, Users, BarChart3 } from 'lucide-react';
 
 export default function WelcomePage() {
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
+  const router = useRouter();
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      router.push('/dashboard');
+    } else {
+      setMounted(true);
+    }
+  }, [router]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 font-sans transition-colors flex flex-col">

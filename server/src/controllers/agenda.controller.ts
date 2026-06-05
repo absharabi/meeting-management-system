@@ -20,6 +20,19 @@ export const createAgenda = async (req: Request, res: Response): Promise<void> =
       res.status(401).json({ message: 'Unauthorized' });
       return;
     }
+
+    // Enforce 24-hour deadline for proposing agenda items
+    const meetingDateStr = meeting.date.toISOString().split('T')[0];
+    const startTimeStr = meeting.startTime || '00:00';
+    const meetingStartDateTime = new Date(`${meetingDateStr}T${startTimeStr}:00`);
+    const now = new Date();
+    const hoursDiff = (meetingStartDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+    
+    if (hoursDiff < 24 && meeting.organizerId.toString() !== requestingUser.id) {
+      res.status(400).json({ message: 'Agenda items can only be proposed up to 24 hours before the meeting.' });
+      return;
+    }
+
     // All agendas must be explicitly approved, even if created by the organizer
     let status = AgendaStatus.Pending;
 

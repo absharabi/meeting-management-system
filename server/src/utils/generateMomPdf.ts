@@ -96,6 +96,22 @@ const buildLines = (meeting: IMeeting): PdfLine[] => {
     });
   });
 
+  lines.push({ text: ' ' });
+  lines.push({ text: 'The meeting ended with thanks to the Chair.', size: 10 });
+  lines.push({ text: ' ' });
+  lines.push({ text: 'Approved By', size: 13, bold: true });
+
+  const approvalStatus = (meeting as any).momApprovalStatus || [];
+  const approvedMembers = approvalStatus.filter((a: any) => a.approved);
+
+  if (approvedMembers.length > 0) {
+    approvedMembers.forEach((member: any) => {
+      lines.push({ text: `${member.name} (${member.department || 'Member'})`, size: 10, indent: 12 });
+    });
+  } else {
+    lines.push({ text: 'No approvals recorded.', size: 10, indent: 12 });
+  }
+
   return lines;
 };
 

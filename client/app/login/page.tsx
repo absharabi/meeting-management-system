@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Sun, Moon } from 'lucide-react';
 
 interface Props {
@@ -135,12 +136,18 @@ function Login({ dark, toggleTheme }: Props) {
 export default function LoginPage() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [mounted, setMounted] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
-    setMounted(true);
-    const isDark = document.documentElement.classList.contains('dark');
-    setTheme(isDark ? 'dark' : 'light');
-  }, []);
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      router.push('/dashboard');
+    } else {
+      setMounted(true);
+      const isDark = document.documentElement.classList.contains('dark');
+      setTheme(isDark ? 'dark' : 'light');
+    }
+  }, [router]);
 
   const toggleTheme = () => {
     if (theme === 'light') {

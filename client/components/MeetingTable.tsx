@@ -389,6 +389,7 @@ export default function MeetingTable({
                               >
                                 Manage Agenda
                               </Link>
+                              <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                               <Link
                                 href={`/meetings/${meeting._id}/mom`}
                                 className="flex items-center gap-2 px-4 py-2 text-sm text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 w-full text-left"
@@ -411,6 +412,20 @@ export default function MeetingTable({
                               >
                                 <Trash2 size={14} /> Delete
                               </button>
+                            </>
+                          )}
+
+                          {/* MoM link for participants who are not organizers/admins */}
+                          {currentUser && meeting.participants?.some((p: any) => p.user?._id === currentUser.id || p.user?._id === currentUser._id) && !(meeting.organizerId?._id === currentUser.id || meeting.organizerId?._id === currentUser._id || currentUser.role === 'SuperAdmin' || currentUser.role === 'Admin') && (
+                            <>
+                              <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                              <Link
+                                href={`/meetings/${meeting._id}/mom`}
+                                className="flex items-center gap-2 px-4 py-2 text-sm text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 w-full text-left"
+                                onClick={() => setOpenDropdownId(null)}
+                              >
+                                <FileText size={14} /> Minutes of Meeting
+                              </Link>
                             </>
                           )}
                         </div>

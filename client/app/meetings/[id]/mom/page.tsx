@@ -121,6 +121,14 @@ export default function MomPage() {
   const currentUserId = currentUser?.id || currentUser?._id;
   const currentUserApproval = approvalStatus.find((approval) => approval.userId === currentUserId);
 
+  const isOrganizerOrAdmin = Boolean(currentUser && meeting && (
+    currentUser.role === "SuperAdmin" || 
+    currentUser.role === "Admin" || 
+    meeting.organizerId?._id === currentUserId ||
+    meeting.organizerId === currentUserId
+  ));
+  const canEdit = isOrganizerOrAdmin && !isConfirmed;
+
   const previewMeeting = useMemo<MomMeeting | null>(() => {
     if (!meeting) return null;
     return { ...meeting, membersPresent: deriveMembersFromParticipants(meeting), agendaItems, momCoverDetails, momStatus };
@@ -308,14 +316,18 @@ export default function MomPage() {
               <p className="mt-2 text-sm text-blue-100">{new Date(meeting.date).toLocaleDateString()} | {meeting.venue || meeting.link || "Venue not specified"}</p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <button onClick={() => saveMom("Draft")} disabled={isSaving || isConfirmed} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60">
-                <Save size={16} />
-                Save Draft
-              </button>
-              <button onClick={() => saveMom("Confirmed")} disabled={isSaving || isConfirmed || !allApproved} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60">
-                <ShieldCheck size={16} />
-                {isConfirmed ? "Confirmed" : "Confirm"}
-              </button>
+              {canEdit && (
+                <>
+                  <button onClick={() => saveMom("Draft")} disabled={isSaving} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60">
+                    <Save size={16} />
+                    Save Draft
+                  </button>
+                  <button onClick={() => saveMom("Confirmed")} disabled={isSaving || !allApproved} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60">
+                    <ShieldCheck size={16} />
+                    {isConfirmed ? "Confirmed" : "Confirm"}
+                  </button>
+                </>
+              )}
               <button onClick={exportPdf} className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/20">
                 <Download size={16} />
                 Export PDF
@@ -359,13 +371,13 @@ export default function MomPage() {
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <CoverField label="Meeting Number">
-              <input disabled={isConfirmed} value={momCoverDetails.meetingNumber} onChange={(event) => setMomCoverDetails((current) => ({ ...current, meetingNumber: event.target.value }))} className={inputClass} placeholder="71st" />
+              <input disabled={!canEdit} value={momCoverDetails.meetingNumber} onChange={(event) => setMomCoverDetails((current) => ({ ...current, meetingNumber: event.target.value }))} className={inputClass} placeholder="71st" />
             </CoverField>
             <CoverField label="Meeting Body">
-              <input disabled={isConfirmed} value={momCoverDetails.meetingBody} onChange={(event) => setMomCoverDetails((current) => ({ ...current, meetingBody: event.target.value }))} className={inputClass} placeholder="Board of Governors" />
+              <input disabled={!canEdit} value={momCoverDetails.meetingBody} onChange={(event) => setMomCoverDetails((current) => ({ ...current, meetingBody: event.target.value }))} className={inputClass} placeholder="Board of Governors" />
             </CoverField>
             <CoverField label="Institute Name">
-              <input disabled={isConfirmed} value={momCoverDetails.instituteName} onChange={(event) => setMomCoverDetails((current) => ({ ...current, instituteName: event.target.value }))} className={inputClass} placeholder="National Institute of Technology Calicut" />
+              <input disabled={!canEdit} value={momCoverDetails.instituteName} onChange={(event) => setMomCoverDetails((current) => ({ ...current, instituteName: event.target.value }))} className={inputClass} placeholder="National Institute of Technology Calicut" />
             </CoverField>
             <CoverField label="Date Line">
               <input readOnly value={momCoverDetails.dateLine} className={`${inputClass} cursor-not-allowed bg-gray-50 dark:bg-gray-900`} />
@@ -470,18 +482,22 @@ export default function MomPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <button onClick={syncAgendaModuleItems} disabled={isConfirmed} className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-900/60 dark:bg-gray-900 dark:text-blue-300 dark:hover:bg-blue-900/20">
-              <RefreshCw size={16} />
-              Sync Agenda Module
-            </button>
-            <button onClick={() => setAgendaItems((current) => [...current, emptyAgendaItem(current.length)])} disabled={isConfirmed} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
-              <Plus size={16} />
-              Add Extra MoM Item
-            </button>
-            <button onClick={openAiFillPage} disabled={isSaving || isConfirmed} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-500/20 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
-              <Sparkles size={16} />
-              Fill Remaining Boxes with AI
-            </button>
+            {canEdit && (
+              <>
+                <button onClick={syncAgendaModuleItems} className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50 dark:border-blue-900/60 dark:bg-gray-900 dark:text-blue-300 dark:hover:bg-blue-900/20">
+                  <RefreshCw size={16} />
+                  Sync Agenda Module
+                </button>
+                <button onClick={() => setAgendaItems((current) => [...current, emptyAgendaItem(current.length)])} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700">
+                  <Plus size={16} />
+                  Add Extra MoM Item
+                </button>
+                <button onClick={openAiFillPage} disabled={isSaving} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-500/20 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
+                  <Sparkles size={16} />
+                  Fill Remaining Boxes with AI
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -495,7 +511,7 @@ export default function MomPage() {
                   index={index}
                   onChange={(nextItem) => updateAgendaItem(index, nextItem)}
                   onRemove={() => setAgendaItems((current) => current.filter((_, itemIndex) => itemIndex !== index))}
-                  disabled={isConfirmed}
+                  disabled={!canEdit}
                 />
               ))}
             </div>
@@ -812,11 +828,28 @@ async function exportMomPdf(meeting: MomMeeting) {
   doc.setTextColor(25, 35, 50);
   doc.text("The meeting ended with thanks to the Chair.", margin, y);
   y += 64;
-  doc.line(margin, y, margin + 180, y);
-  doc.line(pageWidth - margin - 180, y, pageWidth - margin, y);
   doc.setFont("times", "bold");
-  doc.text("Chairperson", margin, y + 16);
-  doc.text("Member Secretary", pageWidth - margin - 180, y + 16);
+  doc.setFontSize(13);
+  doc.setTextColor(20, 35, 60);
+  doc.text("Approved By", margin, y + 16);
+
+  y += 36;
+  doc.setFont("times", "normal");
+  doc.setFontSize(11);
+  doc.setTextColor(25, 35, 50);
+
+  const approvalStatus = meeting.momApprovalStatus || [];
+  const approvedMembers = approvalStatus.filter((a) => a.approved);
+
+  if (approvedMembers.length > 0) {
+    approvedMembers.forEach((member) => {
+      y = ensureSpace(doc, y, 16, meeting);
+      doc.text(`${member.name} (${member.department || "Member"})`, margin, y);
+      y += 16;
+    });
+  } else {
+    doc.text("No approvals recorded.", margin, y);
+  }
 
   addPageNumbers(doc, meeting);
 

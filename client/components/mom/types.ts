@@ -62,6 +62,7 @@ export interface MomMeeting {
   endTime?: string;
   meetingType?: string;
   mode?: string;
+  organizerId?: MomUser | string | any;
   participants?: MomParticipant[];
   membersPresent: MemberPresent[];
   agendaItems: MomAgendaItem[];
