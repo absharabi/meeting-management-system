@@ -409,6 +409,36 @@ export default function ReportsPage() {
         columnStyles: { 0: { cellWidth: 50 } }
       });
 
+      // 7.5 Additional Comments & Custom Blocks
+      const commentRows: any[] = [];
+      (meeting.agendaItems || []).forEach((item: any) => {
+        const customBlocks = item.blocks?.filter((b: any) => 
+          b.type === 'customField' || 
+          (b.label && b.label.toLowerCase().includes('comment'))
+        );
+        customBlocks?.forEach((b: any) => {
+          const val = String(b.value || '');
+          if (val && stripHtml(val).trim() !== '') {
+            commentRows.push([item.subject || `Item ${item.itemNumber}`, b.label || 'Comment', stripHtml(val)]);
+          }
+        });
+      });
+
+      if (commentRows.length > 0) {
+        finalY = (doc as any).lastAutoTable.finalY + 15;
+        if (finalY > 230) { doc.addPage(); finalY = 20; }
+        doc.text('Additional Comments', 14, finalY);
+        
+        autoTable(doc, {
+          startY: finalY + 5,
+          head: [['Subject', 'Label', 'Comment/Note']],
+          body: commentRows,
+          theme: 'striped',
+          headStyles: { fillColor: themeSecondary, textColor: 255 },
+          columnStyles: { 0: { cellWidth: 40 }, 1: { cellWidth: 40 } }
+        });
+      }
+
       // 8. Action Items / Tasks
       finalY = (doc as any).lastAutoTable.finalY + 15;
       if (finalY > 230) { doc.addPage(); finalY = 20; }
@@ -514,6 +544,28 @@ export default function ReportsPage() {
       }));
       if (notesData.length > 0) {
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(notesData), "Notes & Decisions");
+      }
+
+      // 5. Additional Comments Sheet
+      const commentData: any[] = [];
+      (meeting.agendaItems || []).forEach((item: any) => {
+        const customBlocks = item.blocks?.filter((b: any) => 
+          b.type === 'customField' || 
+          (b.label && b.label.toLowerCase().includes('comment'))
+        );
+        customBlocks?.forEach((b: any) => {
+          const val = String(b.value || '');
+          if (val && stripHtml(val).trim() !== '') {
+            commentData.push({
+              Subject: item.subject || `Item ${item.itemNumber}`,
+              Label: b.label || 'Comment',
+              "Comment/Note": stripHtml(val)
+            });
+          }
+        });
+      });
+      if (commentData.length > 0) {
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(commentData), "Additional Comments");
       }
 
       XLSX.writeFile(wb, `${meeting.title.replace(/\s+/g, '_')}_Report.xlsx`);
