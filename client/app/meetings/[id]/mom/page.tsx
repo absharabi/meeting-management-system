@@ -83,9 +83,12 @@ export default function MomPage() {
     try {
       if (!params.id) throw new Error("Missing meeting id in the URL.");
 
+      const token = localStorage.getItem("accessToken");
+      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+
       const [momResponse, agendaResponse] = await Promise.all([
-        fetch(`${API_BASE}/${params.id}/mom`),
-        fetch(`${API_BASE}/${params.id}/agendas`),
+        fetch(`${API_BASE}/${params.id}/mom`, { headers }),
+        fetch(`${API_BASE}/${params.id}/agendas`, { headers }),
       ]);
       const data = await readJsonResponse(momResponse);
       const agendaDataResponse = agendaResponse.ok ? await readJsonResponse(agendaResponse) : [];
@@ -183,9 +186,15 @@ export default function MomPage() {
         momStatus: status,
       };
 
+      const token = localStorage.getItem("accessToken");
+      const headers: HeadersInit = { 
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      };
+
       const response = await fetch(`${API_BASE}/${params.id}/mom`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(payload),
       });
       const data = await response.json();
@@ -272,7 +281,9 @@ export default function MomPage() {
   const syncAgendaModuleItems = async () => {
     if (isConfirmed) return;
     try {
-      const response = await fetch(`${API_BASE}/${params.id}/agendas`);
+      const token = localStorage.getItem("accessToken");
+      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+      const response = await fetch(`${API_BASE}/${params.id}/agendas`, { headers });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Unable to sync agenda module.");
       setSourceAgendas(data);
