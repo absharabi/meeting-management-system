@@ -132,9 +132,10 @@ export default function MeetingTable({
     if (activeTab === 'all') return true;
 
     // Check both object structure (if populated) and raw string/objectId
-    const isOrganizer = meeting.organizerId?._id === currentUser.id || meeting.organizerId === currentUser.id;
+    const currentUserId = currentUser.id || currentUser._id;
+    const isOrganizer = meeting.organizerId?._id === currentUserId || meeting.organizerId === currentUserId;
     const isParticipant = meeting.participants?.some(
-      (p: any) => p.user?._id === currentUser.id || p.user === currentUser.id
+      (p: any) => p.user?._id === currentUserId || p.user === currentUserId || p.user?._id === currentUser.id || p.user?._id === currentUser._id
     );
 
     if (activeTab === 'created') return isOrganizer;
