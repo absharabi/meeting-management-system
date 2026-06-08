@@ -25,7 +25,7 @@ export default function NotificationsPage() {
   const fetchNotifications = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications`);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications`);
       if (res.ok) {
         const data = await res.json();
         setNotifications(data);
@@ -43,7 +43,7 @@ export default function NotificationsPage() {
 
   const markAsRead = async (id: string) => {
     try {
-      await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications/${id}/read`, { method: 'PUT' });
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications/${id}/read`, { method: 'PUT' });
       setNotifications(notifications.map(n => n._id === id ? { ...n, isRead: true } : n));
     } catch (error) {
       console.error('Failed to mark as read', error);
@@ -52,7 +52,7 @@ export default function NotificationsPage() {
 
   const markAllAsRead = async () => {
     try {
-      await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications/read-all`, { method: 'PUT' });
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications/read-all`, { method: 'PUT' });
       setNotifications(notifications.map(n => ({ ...n, isRead: true })));
     } catch (error) {
       console.error('Failed to mark all as read', error);
@@ -62,7 +62,7 @@ export default function NotificationsPage() {
   const clearAllNotifications = async () => {
     if (!confirm('Are you sure you want to clear all notifications?')) return;
     try {
-      await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications/clear-all`, { method: 'DELETE' });
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications/clear-all`, { method: 'DELETE' });
       setNotifications([]);
     } catch (error) {
       console.error('Failed to clear all notifications', error);
@@ -72,7 +72,7 @@ export default function NotificationsPage() {
   const deleteNotification = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications/${id}`, { method: 'DELETE' });
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications/${id}`, { method: 'DELETE' });
       setNotifications(notifications.filter(n => n._id !== id));
     } catch (error) {
       console.error('Failed to delete notification', error);

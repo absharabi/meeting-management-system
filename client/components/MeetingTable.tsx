@@ -46,7 +46,7 @@ export default function MeetingTable({
     try {
       setIsLoading(true);
       const token = localStorage.getItem('accessToken');
-      const url = query ? `\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings?keyword=${encodeURIComponent(query)}` : `\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings`;
+      const url = query ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings?keyword=${encodeURIComponent(query)}` : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings`;
       const apiResponse = await fetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
@@ -81,7 +81,7 @@ export default function MeetingTable({
 
     try {
       const token = localStorage.getItem('accessToken');
-      const deleteResponse = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${id}`, {
+      const deleteResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -100,7 +100,7 @@ export default function MeetingTable({
   const handleRSVP = async (id: string, status: string) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const rsvpResponse = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${id}/rsvp`, {
+      const rsvpResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${id}/rsvp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -168,7 +168,7 @@ export default function MeetingTable({
     setIsSubmittingAttendance(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${attendanceModalMeeting._id}/attendance`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${attendanceModalMeeting._id}/attendance`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

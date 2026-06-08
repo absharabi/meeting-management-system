@@ -21,7 +21,7 @@ export default function LiveNotesPad({ meetingId, initialContent = '', currentUs
 
   useEffect(() => {
     // Initialize Socket
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || `\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}`;
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}`;
     socketRef.current = io(socketUrl, {
       withCredentials: true,
       transports: ['websocket', 'polling']

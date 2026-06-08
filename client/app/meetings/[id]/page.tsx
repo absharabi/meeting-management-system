@@ -38,7 +38,7 @@ export default function MeetingDetailsPage() {
       const token = localStorage.getItem('accessToken');
       // Fetch meeting details (in a real app, you'd have a GET /api/meetings/:id endpoint)
       // Since we don't have one, we fetch all and find it
-      const mRes = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings`, {
+      const mRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       const meetings = await mRes.json();
@@ -46,7 +46,7 @@ export default function MeetingDetailsPage() {
       setMeeting(foundMeeting);
 
       if (foundMeeting) {
-        const aRes = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/agendas`, {
+        const aRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/agendas`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         const agendasData = await aRes.json();
@@ -54,7 +54,7 @@ export default function MeetingDetailsPage() {
       }
 
       // Fetch user to get muted status
-      const uRes = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users/me`, {
+      const uRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users/me`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (uRes.ok) {
@@ -66,7 +66,7 @@ export default function MeetingDetailsPage() {
       }
 
       // Fetch action items for this meeting
-      const actionRes = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/action-items/meeting/${meetingId}`, {
+      const actionRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/action-items/meeting/${meetingId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (actionRes.ok) {
@@ -89,7 +89,7 @@ export default function MeetingDetailsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const payload = { ...newAgenda, sequence: agendas.length + 1 };
-      const res = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/agendas`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/agendas`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -111,7 +111,7 @@ export default function MeetingDetailsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const payload = { ...newActionItem, meetingId };
-      const res = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/action-items`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/action-items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload)
@@ -150,7 +150,7 @@ export default function MeetingDetailsPage() {
       
       try {
         const token = localStorage.getItem('accessToken');
-        await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/agendas/reorder`, {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/agendas/reorder`, {
           method: 'PUT',
           headers: { 
             'Content-Type': 'application/json',
@@ -167,7 +167,7 @@ export default function MeetingDetailsPage() {
   const handleApprove = async (agendaId: string) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/agendas/${agendaId}/status`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/agendas/${agendaId}/status`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
@@ -185,7 +185,7 @@ export default function MeetingDetailsPage() {
     if (!confirm('Delete this agenda item?')) return;
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/agendas/${agendaId}`, {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/agendas/${agendaId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -198,7 +198,7 @@ export default function MeetingDetailsPage() {
   const handleToggleMute = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users/mute-meeting/${meetingId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users/mute-meeting/${meetingId}`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -220,7 +220,7 @@ export default function MeetingDetailsPage() {
     try {
       setIsLoading(true);
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/upload-report`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/upload-report`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
@@ -372,7 +372,7 @@ export default function MeetingDetailsPage() {
                   if(!confirm('Mark this meeting as completed?')) return;
                   try {
                     const token = localStorage.getItem('accessToken');
-                    await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}`, {
+                    await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}`, {
                       method: 'PUT',
                       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                       body: JSON.stringify({ status: 'Completed' })
@@ -529,7 +529,7 @@ export default function MeetingDetailsPage() {
           <div className="flex items-center gap-4">
             {meeting.offlineReportFileUrl && (
               <a 
-                href={`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${meeting.offlineReportFileUrl}`} 
+                href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${meeting.offlineReportFileUrl}`} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/40 rounded-lg text-sm font-medium transition-colors"
@@ -641,7 +641,7 @@ export default function MeetingDetailsPage() {
                   setUserRating(star);
                   try {
                     const token = localStorage.getItem('accessToken');
-                    await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/feedback`, {
+                    await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/feedback`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                       body: JSON.stringify({ meetingId, rating: star })

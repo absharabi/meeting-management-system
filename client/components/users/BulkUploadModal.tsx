@@ -101,7 +101,7 @@ export default function BulkUploadModal({ isOpen, onClose, onComplete }: BulkUpl
       const token = localStorage.getItem("accessToken");
 
       setProgress(45);
-      const response = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users/bulk`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users/bulk`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,

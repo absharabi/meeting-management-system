@@ -38,7 +38,7 @@ export default function MeetingAISummary({ meetingId, meeting, onUpdated, momMod
     try {
       const token = localStorage.getItem("accessToken");
       const response = await fetch(
-        momMode ? `\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/mom` : `\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings`,
+        momMode ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/mom` : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings`,
         {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         }
@@ -96,7 +96,7 @@ export default function MeetingAISummary({ meetingId, meeting, onUpdated, momMod
       const formData = new FormData();
       formData.append("meetingFile", file);
 
-      const response = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/summary`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/summary`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
@@ -136,7 +136,7 @@ export default function MeetingAISummary({ meetingId, meeting, onUpdated, momMod
 
     try {
       const token = localStorage.getItem("accessToken");
-      const response = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/mom-draft`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/mom-draft`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

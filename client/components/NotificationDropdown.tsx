@@ -66,7 +66,7 @@ export default function NotificationDropdown() {
   const fetchNotifications = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.ok) {
@@ -95,7 +95,7 @@ export default function NotificationDropdown() {
     }
     
     // Initialize socket connection
-    const socket = io(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}`, {
+    const socket = io(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}`, {
       withCredentials: true
     });
 
@@ -158,7 +158,7 @@ export default function NotificationDropdown() {
   const markAsRead = async (id: string) => {
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications/${id}/read`, { 
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications/${id}/read`, { 
         method: 'PUT',
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
@@ -171,7 +171,7 @@ export default function NotificationDropdown() {
   const markAllAsRead = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications/read-all`, { 
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications/read-all`, { 
         method: 'PUT',
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
@@ -185,7 +185,7 @@ export default function NotificationDropdown() {
     e.stopPropagation();
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications/${id}`, { 
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications/${id}`, { 
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
