@@ -181,6 +181,20 @@ export default function NotificationDropdown() {
     }
   };
 
+  const clearAllNotifications = async () => {
+    if (!window.confirm('Are you sure you want to delete all notifications?')) return;
+    try {
+      const token = localStorage.getItem('accessToken');
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications/clear-all`, { 
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      setNotifications([]);
+    } catch (error) {
+      console.error('Failed to clear notifications', error);
+    }
+  };
+
   const deleteNotification = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
@@ -235,14 +249,24 @@ export default function NotificationDropdown() {
         <div className="absolute right-0 mt-2 w-80 md:w-96 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden text-gray-800 dark:text-gray-200 z-50">
           <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800/50">
             <h3 className="font-bold text-gray-900 dark:text-white">Notifications</h3>
-            {unreadCount > 0 && (
-              <button 
-                onClick={markAllAsRead}
-                className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium flex items-center gap-1"
-              >
-                <Check size={14} /> Mark all read
-              </button>
-            )}
+            <div className="flex gap-3">
+              {notifications.length > 0 && (
+                <button 
+                  onClick={clearAllNotifications}
+                  className="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 font-medium flex items-center gap-1"
+                >
+                  <Trash2 size={14} /> Clear all
+                </button>
+              )}
+              {unreadCount > 0 && (
+                <button 
+                  onClick={markAllAsRead}
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium flex items-center gap-1"
+                >
+                  <Check size={14} /> Mark all read
+                </button>
+              )}
+            </div>
           </div>
           
           <div className="max-h-80 overflow-y-auto">

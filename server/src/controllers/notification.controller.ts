@@ -10,7 +10,13 @@ export const getUserNotifications = async (req: Request, res: Response): Promise
   try {
     const requestingUser = getRequestingUser(req);
 
-    const notifications = await Notification.find({ recipient: requestingUser.id })
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+    const notifications = await Notification.find({ 
+      recipient: requestingUser.id,
+      createdAt: { $gte: threeDaysAgo }
+    })
       .sort({ createdAt: -1 })
       .limit(50); // Fetch last 50 for performance
 

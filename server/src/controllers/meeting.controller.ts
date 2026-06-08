@@ -428,6 +428,9 @@ export const deleteMeeting = async (req: Request, res: Response): Promise<void> 
     const populatedTarget = await Meeting.findById(req.params.id).populate('participants.user', 'email name notificationPreferences mutedMeetings');
     const deleted = await Meeting.findByIdAndDelete(req.params.id);
 
+    // Delete any existing notifications related to this meeting
+    await Notification.deleteMany({ relatedMeeting: req.params.id });
+
     // Create in-app notifications
     if (populatedTarget) {
       const notificationsToCreate: any[] = [];
