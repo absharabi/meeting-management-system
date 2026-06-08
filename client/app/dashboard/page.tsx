@@ -90,7 +90,7 @@ export default function DashboardPage() {
       setIsDashboardLoading(true);
       setDashboardError('');
       try {
-        const response = await fetch('http://localhost:5000/api/dashboard/summary', {
+        const response = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/dashboard/summary`, {
           headers: getAuthHeaders(),
         });
         const data = await response.json();

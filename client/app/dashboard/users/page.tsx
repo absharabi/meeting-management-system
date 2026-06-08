@@ -33,7 +33,7 @@ interface BackendUser {
   updatedAt?: string;
 }
 
-const API_BASE = "http://localhost:5000/api/users";
+const API_BASE = `\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users`;
 const avatarColors = [
   "from-blue-600 to-cyan-500",
   "from-indigo-600 to-blue-500",

@@ -86,7 +86,7 @@ function Login({ dark, toggleTheme }: Props) {
 
         {/* Google button */}
         <button
-          onClick={() => { window.location.href = 'http://localhost:5000/api/auth/google' }}
+          onClick={() => { window.location.href = `\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/auth/google` }}
           style={{
             width: '100%',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,

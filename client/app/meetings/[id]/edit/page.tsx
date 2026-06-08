@@ -21,7 +21,7 @@ export default function EditMeetingPage() {
     const fetchMeeting = async () => {
       try {
         const token = localStorage.getItem('accessToken');
-        const res = await fetch(`http://localhost:5000/api/meetings`, {
+        const res = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         if (!res.ok) throw new Error('Failed to fetch meetings');

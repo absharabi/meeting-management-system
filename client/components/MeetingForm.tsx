@@ -70,7 +70,7 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
     const loadUsers = async () => {
       try {
         const token = localStorage.getItem('accessToken');
-        const res = await fetch('http://localhost:5000/api/users', {
+        const res = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
 
@@ -116,8 +116,8 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
 
     try {
       const url = mode === 'edit' && initialData?._id 
-        ? `http://localhost:5000/api/meetings/${initialData._id}` 
-        : 'http://localhost:5000/api/meetings';
+        ? `\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${initialData._id}` 
+        : `\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings`;
         
       const method = mode === 'edit' ? 'PUT' : 'POST';
 

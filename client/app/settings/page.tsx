@@ -39,7 +39,7 @@ export default function SettingsPage() {
 
     const fetchPreferences = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/users/me', {
+        const res = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users/me`, {
           headers: getAuthHeaders()
         });
         if (res.ok) {
@@ -70,7 +70,7 @@ export default function SettingsPage() {
     setIsSaving(true);
     setMessage('');
     try {
-      const res = await fetch('http://localhost:5000/api/users/me', {
+      const res = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users/me`, {
         method: 'PUT',
         headers: getAuthHeaders(true),
         body: JSON.stringify({ name: profile.name, department: profile.department })
@@ -96,7 +96,7 @@ export default function SettingsPage() {
     setIsSaving(true);
     setMessage('');
     try {
-      const res = await fetch('http://localhost:5000/api/users/preferences', {
+      const res = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users/preferences`, {
         method: 'PUT',
         headers: getAuthHeaders(true),
         body: JSON.stringify({ notificationPreferences: preferences })

@@ -136,7 +136,7 @@ export default function ReportsPage() {
       setIsSearchingSuggestions(true);
       try {
         const token = localStorage.getItem('accessToken');
-        const res = await fetch(`http://localhost:5000/api/meetings?keyword=${meetingIdInput}`, {
+        const res = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings?keyword=${meetingIdInput}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) {
@@ -170,7 +170,7 @@ export default function ReportsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const url = `http://localhost:5000/api/reports/date-wise?startDate=${startDate}&endDate=${endDate}${searchQuery ? `&keyword=${encodeURIComponent(searchQuery)}` : ''}`;
+      const url = `\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/reports/date-wise?startDate=${startDate}&endDate=${endDate}${searchQuery ? `&keyword=${encodeURIComponent(searchQuery)}` : ''}`;
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -189,7 +189,7 @@ export default function ReportsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:5000/api/reports/yearly?year=${selectedYear}`, {
+      const res = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/reports/yearly?year=${selectedYear}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to fetch or unauthorized');
@@ -210,7 +210,7 @@ export default function ReportsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:5000/api/reports/meeting/${encodeURIComponent(identifier.trim())}`, {
+      const res = await fetch(`\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/reports/meeting/${encodeURIComponent(identifier.trim())}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) {

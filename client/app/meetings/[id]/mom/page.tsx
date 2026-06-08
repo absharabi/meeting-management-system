@@ -12,7 +12,7 @@ import AgendaItemForm from "@/components/mom/AgendaItemForm";
 import SummaryTable from "@/components/mom/SummaryTable";
 import { MemberPresent, MomAgendaItem, MomApprovalStatus, MomBlock, MomBlockType, MomCoverDetails, MomMeeting, MomStatus } from "@/components/mom/types";
 
-const API_BASE = "http://localhost:5000/api/meetings";
+const API_BASE = `\${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings`;
 const inputClass = "w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-800 dark:bg-gray-950 dark:text-white";
 const logoPaths = ["/mom/nitc-logo.png", "/mom/nitc-logo.png.png"];
 const buildingPaths = ["/mom/nitc-building.jpg", "/mom/nitc-building.jpeg"];
