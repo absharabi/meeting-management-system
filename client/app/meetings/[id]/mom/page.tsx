@@ -863,6 +863,23 @@ async function exportMomPdf(meeting: MomMeeting) {
   const margin = 48;
   const agendaItems = [...(meeting.agendaItems || [])].sort((a, b) => a.order - b.order);
 
+  const rawMeetingNo = cover?.meetingNumber || "XX";
+  const cleanMeetingNo = rawMeetingNo.replace(/\D/g, "") || rawMeetingNo;
+  let currentMainNumber = 0;
+  let currentSubLetterIndex = 0;
+
+  const numberedItems = agendaItems.map((item) => {
+    if (!item.isSubItem) {
+      currentMainNumber++;
+      currentSubLetterIndex = 0;
+      return { ...item, computedNumber: `BG.${cleanMeetingNo}.${String(currentMainNumber).padStart(2, "0")}` };
+    } else {
+      const letter = String.fromCharCode(97 + currentSubLetterIndex);
+      currentSubLetterIndex++;
+      return { ...item, computedNumber: `BG.${cleanMeetingNo}.${String(currentMainNumber || 1).padStart(2, "0")}(${letter})` };
+    }
+  });
+
   drawOfficialCover(doc, {
     pageWidth,
     pageHeight,
@@ -925,49 +942,95 @@ async function exportMomPdf(meeting: MomMeeting) {
   });
 
   y = ((doc as JsPdfWithAutoTable).lastAutoTable?.finalY || y) + 30;
-  y = ensureSpace(doc, y, 120, meeting);
-  doc.setFont("times", "bold");
-  doc.setFontSize(13);
-  doc.setTextColor(20, 35, 60);
-  doc.text("Agenda Items and Decisions", margin, y);
-  y += 22;
 
   const groups: MomAgendaItem["sectionGroup"][] = ["Procedural", "Consideration & Approval", "Reporting", "Any Other Matter"];
-  groups.forEach((group) => {
-    const groupItems = agendaItems.filter((item) => item.sectionGroup === group);
+  groups.forEach((group, groupIndex) => {
+    const groupItems = numberedItems.filter((item) => item.sectionGroup === group);
     if (!groupItems.length) return;
 
     y = ensureSpace(doc, y, 64, meeting);
-    doc.setFillColor(235, 242, 249);
-    doc.rect(margin, y - 12, pageWidth - margin * 2, 24, "F");
+    
+    // Group Header
     doc.setFont("times", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(21, 70, 120);
-    doc.text(group, margin + 8, y + 4);
-    y += 30;
+    doc.setFontSize(13);
+    doc.setTextColor(20, 35, 60);
+    doc.text(`Section ${groupIndex + 1} (${group} Items)`, pageWidth / 2, y, { align: "center" });
+    y += 16;
+    
+    if (groupIndex === 0) {
+       doc.setFontSize(11);
+       doc.text(`Brief Notes on the Agenda Points for ${rawMeetingNo} Meeting of BoG`, pageWidth / 2, y, { align: "center" });
+       y += 16;
+    }
 
-    groupItems.forEach((item, index) => {
-      const agendaNo = [item.sectionTag, item.itemNumber || String(index + 1).padStart(2, "0")].filter(Boolean).join(" / ");
-      y = ensureSpace(doc, y, 150, meeting);
-      const itemStartY = y - 16;
-      doc.setFont("times", "bold");
-      doc.setFontSize(11);
-      doc.setTextColor(0, 0, 0);
-      const titleLines = doc.splitTextToSize(`${agendaNo ? `Item ${agendaNo}. ` : `Item ${String(index + 1).padStart(2, "0")}. `}${item.subject || "Untitled agenda item"}`, pageWidth - margin * 2 - 16);
-      doc.text(titleLines, margin, y);
-      y += titleLines.length * 14 + 8;
+    groupItems.forEach((item) => {
+      y = ensureSpace(doc, y, 100, meeting);
+      
+      if (item.isActionTakenReport) {
+        doc.setFont("times", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(0, 0, 0);
+        const titleLines = doc.splitTextToSize(item.subject || "Untitled", pageWidth - margin * 2);
+        doc.text(titleLines, margin, y);
+        y += titleLines.length * 14 + 6;
 
-      visibleBlocks(item).forEach((block) => {
-        if (block.type === "table") {
-          y = writeOfficialTable(doc, block, margin + 14, y, pageWidth, meeting);
-          return;
+        const decisionText = stripHtml(getBlockText(item, "decision"));
+        const actionTakenText = stripHtml(getBlockText(item, "actionTaken") || getBlockText(item, "status"));
+        
+        autoTable(doc, {
+          startY: y,
+          theme: "grid",
+          margin: { left: margin, right: margin },
+          head: [["SlNo", "BG No.", "Decision", "Action Taken"]],
+          body: [
+            ["1", item.computedNumber, decisionText, actionTakenText]
+          ],
+          styles: { font: "times", fontSize: 9.5, cellPadding: 5, lineColor: [0, 0, 0], lineWidth: 0.5, textColor: [0, 0, 0], valign: "top" },
+          headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: "bold", lineWidth: 0.5, lineColor: [0,0,0] },
+          columnStyles: { 0: { cellWidth: 40 }, 1: { cellWidth: 70 }, 2: { cellWidth: 200 } },
+          didDrawPage: () => drawPageHeader(doc, meeting, doc.getNumberOfPages()),
+        });
+        
+        y = ((doc as JsPdfWithAutoTable).lastAutoTable?.finalY || y) + 20;
+
+      } else {
+        const blocks = visibleBlocks(item);
+        const decisionBlock = blocks.find((b) => b.type === "decision" || b.type === "actionRequired");
+        const resolutionBlock = blocks.find((b) => b.type === "resolution");
+        
+        let subjectRight = item.subject + "\n";
+        blocks.forEach((block) => {
+           if (block.type !== "decision" && block.type !== "actionRequired" && block.type !== "resolution" && block.type !== "actionTaken" && block.type !== "table") {
+             subjectRight += "\n" + block.label + ": " + getBlockDisplayValue(block);
+           }
+        });
+
+        const rows = [
+          [`Subject\n${item.computedNumber}`, subjectRight.trim()]
+        ];
+
+        if (decisionBlock || !resolutionBlock) {
+          rows.push(["Decision", stripHtml(String(decisionBlock?.value || "No decision recorded."))]);
         }
-        y = writeOfficialBlock(doc, block.label, getBlockDisplayValue(block), margin, y, pageWidth, meeting);
-      });
-      doc.setDrawColor(190, 198, 208);
-      doc.setLineWidth(0.4);
-      doc.rect(margin - 8, itemStartY, pageWidth - margin * 2 + 16, Math.max(36, y - itemStartY), "S");
-      y += 10;
+        if (resolutionBlock) {
+          rows.push(["Resolution", stripHtml(String(resolutionBlock.value || ""))]);
+        }
+
+        autoTable(doc, {
+          startY: y,
+          theme: "grid",
+          margin: { left: margin, right: margin },
+          body: rows,
+          styles: { font: "times", fontSize: 10, cellPadding: 6, lineColor: [0, 0, 0], lineWidth: 0.5, textColor: [0, 0, 0], valign: "top" },
+          columnStyles: {
+            0: { fontStyle: "bold", fillColor: [242, 246, 250], cellWidth: 80 },
+            1: { cellWidth: pageWidth - margin * 2 - 80 },
+          },
+          didDrawPage: () => drawPageHeader(doc, meeting, doc.getNumberOfPages()),
+        });
+
+        y = ((doc as JsPdfWithAutoTable).lastAutoTable?.finalY || y) + 20;
+      }
     });
   });
 
@@ -978,48 +1041,6 @@ async function exportMomPdf(meeting: MomMeeting) {
     y += 20;
   }
 
-  doc.addPage();
-  drawPageHeader(doc, meeting, doc.getNumberOfPages());
-  doc.setFont("times", "bold");
-  doc.setFontSize(13);
-  doc.setTextColor(20, 35, 60);
-  doc.text("Action Taken Summary", margin, 94);
-
-  const actionRows = agendaItems
-    .map((item, index) => ({
-      agendaNo: item.itemNumber || String(index + 1).padStart(2, "0"),
-      decisionAction: stripHtml(getBlockText(item, "decision")) || getBlockText(item, "actionRequired"),
-      responsibility: getBlockText(item, "responsiblePerson"),
-      targetDate: formatDate(getBlockText(item, "targetDate")),
-    }))
-    .filter((row) => row.decisionAction || row.responsibility || row.targetDate);
-  const actionColumns = [
-    { header: "Agenda No.", key: "agendaNo", visible: true },
-    { header: "Decision / Action", key: "decisionAction", visible: actionRows.some((row) => row.decisionAction) },
-    { header: "Responsibility", key: "responsibility", visible: actionRows.some((row) => row.responsibility) },
-    { header: "Target Date", key: "targetDate", visible: actionRows.some((row) => row.targetDate) },
-  ].filter((column) => column.visible);
-
-  autoTable(doc, {
-    startY: 112,
-    theme: "grid",
-    margin: { left: margin, right: margin },
-    head: [actionColumns.map((column) => column.header)],
-    body: actionRows.length
-      ? actionRows.map((row) => actionColumns.map((column) => row[column.key as keyof typeof row] || "-"))
-      : [actionColumns.map((_, index) => index === 0 ? "No action items recorded" : "-")],
-    styles: { font: "times", fontSize: 9, cellPadding: 5, valign: "top", lineColor: [190, 198, 208], lineWidth: 0.4, textColor: [25, 35, 50] },
-    headStyles: { fillColor: [21, 45, 78], textColor: [255, 255, 255], fontStyle: "bold" },
-    columnStyles: {
-      0: { cellWidth: 70, halign: "center" },
-      1: { cellWidth: 250 },
-      2: { cellWidth: 115 },
-      3: { cellWidth: 65, halign: "center" },
-    },
-    didDrawPage: () => drawPageHeader(doc, meeting, doc.getNumberOfPages()),
-  });
-
-  y = ((doc as JsPdfWithAutoTable).lastAutoTable?.finalY || 112) + 44;
   y = ensureSpace(doc, y, 120, meeting);
   doc.setFont("times", "normal");
   doc.setFontSize(10);
@@ -1061,22 +1082,89 @@ function exportMomWord(meeting: MomMeeting) {
   const approvalStatus = meeting.momApprovalStatus || [];
   const approvedMembers = approvalStatus.filter((approval) => approval.approved);
 
-  const agendaHtml = groups.map((group) => {
-    const groupItems = agendaItems.filter((item) => item.sectionGroup === group);
+  const rawMeetingNo = cover?.meetingNumber || "XX";
+  const cleanMeetingNo = rawMeetingNo.replace(/\D/g, "") || rawMeetingNo;
+  let currentMainNumber = 0;
+  let currentSubLetterIndex = 0;
+
+  const numberedItems = agendaItems.map((item) => {
+    if (!item.isSubItem) {
+      currentMainNumber++;
+      currentSubLetterIndex = 0;
+      return { ...item, computedNumber: `BG.${cleanMeetingNo}.${String(currentMainNumber).padStart(2, "0")}` };
+    } else {
+      const letter = String.fromCharCode(97 + currentSubLetterIndex);
+      currentSubLetterIndex++;
+      return { ...item, computedNumber: `BG.${cleanMeetingNo}.${String(currentMainNumber || 1).padStart(2, "0")}(${letter})` };
+    }
+  });
+
+  const agendaHtml = groups.map((group, groupIndex) => {
+    const groupItems = numberedItems.filter((item) => item.sectionGroup === group);
     if (!groupItems.length) return "";
 
     return `
-      <h2>${escapeHtml(group)}</h2>
-      ${groupItems.map((item, index) => {
-        const agendaNo = [item.sectionTag, item.itemNumber || String(index + 1).padStart(2, "0")].filter(Boolean).join(" / ");
+      <div style="text-align: center; margin-bottom: 24pt;">
+        <h2 style="background: none; text-decoration: underline; margin-bottom: 4pt; color: black;">Section ${groupIndex + 1}</h2>
+        <p style="margin: 0; font-weight: bold; color: black;">(${escapeHtml(group)} Items)</p>
+        ${groupIndex === 0 ? `<p style="margin-top: 12pt; text-transform: uppercase; font-weight: bold;">Brief Notes on the Agenda Points for ${escapeHtml(rawMeetingNo)} Meeting of BoG</p>` : ""}
+      </div>
+      ${groupItems.map((item) => {
+        if (item.isActionTakenReport) {
+          const decisionBlock = visibleBlocks(item).find((b) => b.type === "decision");
+          const actionTakenBlock = visibleBlocks(item).find((b) => b.type === "actionTaken" || b.type === "status");
+          return `
+            <div style="page-break-inside: avoid; margin-bottom: 24pt;">
+              <h4 style="margin-bottom: 8pt;">${escapeHtml(item.subject)}</h4>
+              <table class="bog-table" style="width: 100%;">
+                <tr>
+                  <th style="width: 8%;">SlNo</th>
+                  <th style="width: 15%;">BG No.</th>
+                  <th style="width: 45%;">Decision</th>
+                  <th style="width: 32%;">Action Taken</th>
+                </tr>
+                <tr>
+                  <td>1</td>
+                  <td>${escapeHtml(item.computedNumber)}</td>
+                  <td>${String(decisionBlock?.value || "").replace(/\n/g, "<br>")}</td>
+                  <td>${String(actionTakenBlock?.value || "").replace(/\n/g, "<br>")}</td>
+                </tr>
+              </table>
+            </div>
+          `;
+        }
+
+        const blocks = visibleBlocks(item);
+        const decisionBlock = blocks.find((b) => b.type === "decision" || b.type === "actionRequired");
+        const resolutionBlock = blocks.find((b) => b.type === "resolution");
+        
         return `
-          <div class="agenda-box">
-          <h3>${escapeHtml(`${agendaNo ? `Item ${agendaNo}. ` : `Item ${String(index + 1).padStart(2, "0")}. `}${item.subject || "Untitled agenda item"}`)}</h3>
-          ${visibleBlocks(item).map((block) => {
-            if (block.type === "table") return tableBlockToHtml(block);
-            return `<p class="block"><strong>${escapeHtml(block.label)}:</strong> ${escapeHtml(getBlockDisplayValue(block)).replace(/\n/g, "<br>")}</p>`;
-          }).join("")}
-          </div>
+          <table class="bog-table" style="width: 100%; margin-bottom: 24pt; page-break-inside: avoid;">
+            <tr>
+              <td class="bog-left">Subject<br>${escapeHtml(item.computedNumber)}</td>
+              <td>
+                <p><strong>${escapeHtml(item.subject)}</strong></p>
+                ${blocks.map((block) => {
+                  if (block.type !== "decision" && block.type !== "actionRequired" && block.type !== "resolution" && block.type !== "actionTaken" && block.type !== "table") {
+                     return `<p><strong>${escapeHtml(block.label)}:</strong> ${String(block.value || "").replace(/\n/g, "<br>")}</p>`;
+                  }
+                  return "";
+                }).join("")}
+              </td>
+            </tr>
+            ${(decisionBlock || !resolutionBlock) ? `
+            <tr>
+              <td class="bog-left">Decision</td>
+              <td>${String(decisionBlock?.value || "No decision recorded.").replace(/\n/g, "<br>")}</td>
+            </tr>
+            ` : ""}
+            ${resolutionBlock ? `
+            <tr>
+              <td class="bog-left">Resolution</td>
+              <td>${String(resolutionBlock.value || "").replace(/\n/g, "<br>")}</td>
+            </tr>
+            ` : ""}
+          </table>
         `;
       }).join("")}
     `;
@@ -1088,16 +1176,19 @@ function exportMomWord(meeting: MomMeeting) {
         <meta charset="utf-8">
         <style>
           @page { margin: 0.7in; }
-          body { font-family: "Times New Roman", serif; color: #111827; font-size: 11pt; line-height: 1.35; }
+          body { font-family: "Times New Roman", serif; color: #000; font-size: 11pt; line-height: 1.35; text-align: justify; }
           h1 { font-size: 18pt; text-align: center; margin: 0 0 18pt; }
-          h2 { font-size: 13pt; background: #eef3f8; color: #153654; padding: 6pt; margin: 18pt 0 8pt; }
+          h2 { font-size: 13pt; text-align: center; margin: 18pt 0 8pt; }
           h3 { font-size: 12pt; margin: 12pt 0 6pt; }
+          h4 { font-size: 11pt; font-weight: bold; margin: 12pt 0 6pt; }
           .header { text-align: center; font-weight: bold; text-transform: uppercase; margin-bottom: 18pt; }
-          .meta, .members, .data-table { border-collapse: collapse; width: 100%; margin: 8pt 0 16pt; }
-          .meta td, .members th, .members td, .data-table th, .data-table td { border: 1px solid #b9c1cc; padding: 5pt; vertical-align: top; }
-          .meta td:first-child, .members th, .data-table th { font-weight: bold; background: #f2f6fa; }
-          .agenda-box { border: 1px solid #b9c1cc; padding: 8pt; margin: 8pt 0 12pt; }
-          .block { border-top: 1px solid #d5dbe3; margin: 8pt 0 8pt; padding: 5pt 0 0; }
+          .meta, .members { border-collapse: collapse; width: 100%; margin: 8pt 0 16pt; }
+          .meta td, .members th, .members td { border: 1px solid #000; padding: 5pt; vertical-align: top; }
+          .meta td:first-child, .members th { font-weight: bold; background: #f2f6fa; }
+          .bog-table { border-collapse: collapse; width: 100%; border: 1px solid #000; }
+          .bog-table td, .bog-table th { border: 1px solid #000; padding: 6pt; vertical-align: top; }
+          .bog-table th { font-weight: bold; }
+          .bog-left { width: 15%; background: #f2f6fa; font-weight: bold; }
           .footer { mso-element: footer; text-align: center; color: #5b6472; font-size: 9pt; }
         </style>
       </head>
