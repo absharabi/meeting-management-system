@@ -291,7 +291,7 @@ export default function MeetingTable({
             </thead>
             <tbody>
               {displayedMeetings.map((meeting) => (
-                <tr key={meeting._id} className="bg-white dark:bg-gray-800 border-b border-gray-50 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                <tr key={meeting._id} className="bg-white dark:bg-gray-800 border-b border-gray-50 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                   <td className="px-6 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap">
                     {meeting.title}
                   </td>
