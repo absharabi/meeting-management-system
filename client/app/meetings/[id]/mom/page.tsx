@@ -149,6 +149,7 @@ export default function MomPage() {
     getOrganizerId(meeting.organizerId) === currentUserId ||
     meeting.organizerId === currentUserId
   ));
+  const canForceConfirm = currentUser?.role === "SuperAdmin" || currentUser?.role === "Admin";
   const canEdit = isOrganizerOrAdmin && !isConfirmed;
 
   const previewMeeting = useMemo<MomMeeting | null>(() => {
@@ -165,7 +166,7 @@ export default function MomPage() {
       window.alert("Please complete the cover page details before confirming the MoM.");
       return false;
     }
-    if (status === "Confirmed" && !allApproved) {
+    if (status === "Confirmed" && !allApproved && !canForceConfirm) {
       window.alert(`Everyone in the meeting must approve before confirmation. Pending: ${pendingApprovals.map((approval) => approval.name).join(", ") || "No reviewers found"}.`);
       return false;
     }
@@ -375,7 +376,7 @@ export default function MomPage() {
                     <Save size={16} />
                     Save Draft
                   </button>
-                  <button onClick={() => saveMom("Confirmed")} disabled={isSaving || !allApproved} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60">
+                  <button onClick={() => saveMom("Confirmed")} disabled={isSaving || (!allApproved && !canForceConfirm)} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60">
                     <ShieldCheck size={16} />
                     {isConfirmed ? "Confirmed" : "Confirm"}
                   </button>
