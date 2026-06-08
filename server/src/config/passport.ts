@@ -1,6 +1,6 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
-import User from '../models/User';
+import User, { Role } from '../models/User';
 
 passport.use(
   new GoogleStrategy(
@@ -14,13 +14,26 @@ passport.use(
         const email = profile.emails?.[0].value;
         if (!email) return done(new Error('No email from Google'));
 
-        const user = await User.findOne({ email });
-        if (!user) return done(null, false);
+        let user = await User.findOne({ email });
+        
+        // Auto-create user if they don't exist in the system yet
+        if (!user) {
+          user = await User.create({
+            email,
+            name: profile.displayName || 'New User',
+            googleId: profile.id,
+            avatar: profile.photos?.[0]?.value,
+            role: Role.User, // Default role
+            isActive: true,
+          });
+        }
+
         if (!user.isActive) return done(null, false);
 
+        // Update Google ID/Avatar if missing on an existing user
         if (!user.googleId) {
           user.googleId = profile.id;
-          user.avatar   = profile.photos?.[0].value;
+          user.avatar   = profile.photos?.[0]?.value || user.avatar;
           user.name     = profile.displayName || user.name;
           await user.save();
         }
