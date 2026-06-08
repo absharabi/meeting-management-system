@@ -9,7 +9,9 @@ export type MomBlockType =
   | "annexureReference"
   | "status"
   | "table"
-  | "customField";
+  | "customField"
+  | "resolution"
+  | "actionTaken";
 
 export interface MomTableValue {
   columns: string[];
@@ -44,7 +46,9 @@ export interface MomParticipant {
 export interface MomAgendaItem {
   _id?: string;
   sourceAgendaId?: string | null;
-  itemNumber: string;
+  itemNumber: string; // Kept for backwards compatibility but we will compute dynamic numbers in preview
+  isSubItem?: boolean;
+  isActionTakenReport?: boolean;
   sectionTag?: string;
   sectionGroup: SectionGroup;
   subject: string;

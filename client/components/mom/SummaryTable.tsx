@@ -8,7 +8,9 @@ const hasText = (value: string) => stripHtml(String(value || "")).length > 0;
 const blockLabels: Record<MomBlockType, string> = {
   backgroundNote: "Background Note",
   decision: "Decision",
+  resolution: "Resolution",
   actionRequired: "Action Required",
+  actionTaken: "Action Taken",
   responsiblePerson: "Responsible Person",
   targetDate: "Target Date",
   annexureReference: "Annexure Reference",

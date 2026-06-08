@@ -20,7 +20,9 @@ const sectionGroups: SectionGroup[] = [
 const blockCatalog: { type: MomBlockType; label: string }[] = [
   { type: "backgroundNote", label: "Background Note" },
   { type: "decision", label: "Decision" },
+  { type: "resolution", label: "Resolution" },
   { type: "actionRequired", label: "Action Required" },
+  { type: "actionTaken", label: "Action Taken" },
   { type: "responsiblePerson", label: "Responsible Person" },
   { type: "targetDate", label: "Target Date" },
   { type: "annexureReference", label: "Annexure Reference" },
@@ -131,8 +133,17 @@ export default function AgendaItemForm({ item, index, onChange, onRemove, disabl
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Field label="Item Number">
-          <input disabled={disabled} value={item.itemNumber} onChange={(event) => update("itemNumber", event.target.value)} className={fieldInputClass} placeholder="BG.71.03" />
+        <Field label="BoG Properties">
+          <div className="flex flex-col gap-2 pt-1">
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input type="checkbox" disabled={disabled} checked={!!item.isSubItem} onChange={(e) => update("isSubItem", e.target.checked)} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+              Is Sub-item
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input type="checkbox" disabled={disabled} checked={!!item.isActionTakenReport} onChange={(e) => update("isActionTakenReport", e.target.checked)} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+              Action Taken Report
+            </label>
+          </div>
         </Field>
         <Field label="Section Tag">
           <input disabled={disabled} value={item.sectionTag || ""} onChange={(event) => update("sectionTag", event.target.value)} className={fieldInputClass} placeholder="FC.62.02" />
@@ -228,7 +239,7 @@ function SortableBlock({ id, block, disabled, onChange, onRemove }: { id: string
 }
 
 function BlockEditor({ block, disabled, onChange }: { block: MomBlock; disabled?: boolean; onChange: (block: MomBlock) => void }) {
-  if (block.type === "backgroundNote" || block.type === "decision") {
+  if (block.type === "backgroundNote" || block.type === "decision" || block.type === "resolution" || block.type === "actionTaken") {
     return (
       <div className="rounded-xl border border-gray-200 bg-white pb-10 dark:border-gray-800 dark:bg-gray-950">
         <ReactQuill theme="snow" value={String(block.value || "")} onChange={(value) => onChange({ ...block, value })} readOnly={disabled} className="h-36" />

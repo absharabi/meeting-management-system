@@ -8,86 +8,174 @@ const stripHtml = (value: string) => value.replace(/<[^>]+>/g, "").replace(/&nbs
 export default function MomPreview({ meeting }: { meeting: MomMeeting }) {
   const agendaItems = [...(meeting.agendaItems || [])].sort((a, b) => a.order - b.order);
   const cover = meeting.momCoverDetails;
+  // Use raw meeting number for header, but clean number for agenda items
+  const rawMeetingNo = cover?.meetingNumber || "XX";
+  const cleanMeetingNo = rawMeetingNo.replace(/\D/g, "") || rawMeetingNo;
+  let currentMainNumber = 0;
+  let currentSubLetterIndex = 0;
+
+  const numberedItems = agendaItems.map((item) => {
+    if (!item.isSubItem) {
+      currentMainNumber++;
+      currentSubLetterIndex = 0;
+      return { ...item, computedNumber: `BG.${cleanMeetingNo}.${String(currentMainNumber).padStart(2, "0")}` };
+    } else {
+      const letter = String.fromCharCode(97 + currentSubLetterIndex);
+      currentSubLetterIndex++;
+      return { ...item, computedNumber: `BG.${cleanMeetingNo}.${String(currentMainNumber || 1).padStart(2, "0")}(${letter})` };
+    }
+  });
 
   return (
-    <section className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-      <div className="mx-auto flex min-h-[760px] max-w-[720px] flex-col items-center px-10 py-10 text-center text-black">
-        <img src="/mom/nitc-logo.png" onError={(event) => { event.currentTarget.src = "/mom/nitc-logo.png.png"; }} alt="NIT Calicut logo" className="h-24 w-24 object-contain" />
-        <div className="mt-12 space-y-2 font-serif">
-          <p className="text-3xl font-bold text-sky-500">Minutes</p>
-          <p className="text-4xl font-bold text-red-700">of the {cover?.meetingNumber || "Nth"}</p>
-          <p className="pt-3 text-2xl text-red-700">Meeting of the</p>
-          <p className="text-4xl font-bold text-green-600">{cover?.meetingBody || "Board of Governors"}</p>
-          <p className="text-2xl text-red-700">of the {cover?.instituteName || "National Institute of Technology Calicut"}</p>
-          <p className="pt-6 text-2xl text-sky-500">{cover?.dateLine || `on ${new Date(meeting.date).toLocaleDateString()} at meeting time`}</p>
+    <div className="bg-white shadow-md">
+      {/* A4 Container */}
+      <div 
+        className="mx-auto w-full max-w-[210mm] bg-white p-[20mm] text-black"
+        style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '11pt', lineHeight: '1.4' }}
+      >
+        {/* Cover Section (Simplified to blend into the document) */}
+        <div className="mb-12 text-center">
+          <h1 className="text-xl font-bold uppercase underline">
+            {cover?.instituteName || "National Institute of Technology Calicut"}
+          </h1>
+          <p className="mt-4 font-bold">
+            Minutes of the {rawMeetingNo} Meeting of the {cover?.meetingBody || "Board of Governors"}
+          </p>
+          <p className="mt-2">
+            {cover?.dateLine || `Date: ${new Date(meeting.date).toLocaleDateString()}`} | {cover?.venueLine || `Venue: ${meeting.venue || "TBA"}`}
+          </p>
         </div>
-        <p className="mt-14 font-serif text-lg">{cover?.venueLine || `Through ${meeting.venue || meeting.link || "the notified venue"}`}</p>
-        <img src="/mom/nitc-building.jpg" onError={(event) => { event.currentTarget.src = "/mom/nitc-building.jpeg"; }} alt="NIT Calicut building" className="mt-6 h-48 w-[430px] object-cover" />
-      </div>
 
-      <div className="border-t border-gray-200 p-6 dark:border-gray-800">
-        <h3 className="font-bold text-gray-900 dark:text-white">Members Present</h3>
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-              <tr>
-                <th className="px-3 py-2">Name</th>
-                <th className="px-3 py-2">Designation</th>
-                <th className="px-3 py-2">Mode</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {meeting.membersPresent.map((member, index) => (
-                <tr key={`${member.name}-${index}`}>
-                  <td className="px-3 py-2">{member.name || "-"}</td>
-                  <td className="px-3 py-2">{member.designation || "-"}</td>
-                  <td className="px-3 py-2">{member.attendanceMode || "-"}</td>
-                </tr>
-              ))}
-              {meeting.membersPresent.length === 0 && (
-                <tr><td colSpan={3} className="px-3 py-4 text-center text-gray-500">No members recorded.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="mt-6 space-y-6">
-        {groups.map((group) => {
-          const groupItems = agendaItems.filter((item) => item.sectionGroup === group);
+        {/* Section Iteration */}
+        {groups.map((group, groupIndex) => {
+          const groupItems = numberedItems.filter((item) => item.sectionGroup === group);
           if (!groupItems.length) return null;
 
           return (
-            <div key={group}>
-              <h3 className="rounded-lg bg-gray-100 px-3 py-2 font-bold text-gray-900 dark:bg-gray-800 dark:text-white">{group}</h3>
-              <div className="mt-3 space-y-4">
-                {groupItems.map((item, index) => (
-                  <article key={item._id || `${item.itemNumber}-${index}`} className="rounded-lg border border-gray-300 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-950">
-                    <p className="text-sm font-bold text-blue-700 dark:text-blue-300">
-                      Item {[item.sectionTag, item.itemNumber || String(index + 1).padStart(2, "0")].filter(Boolean).join(" / ")}
-                    </p>
-                    <h4 className="mt-1 font-bold text-gray-900 dark:text-white">{item.subject}</h4>
-                    {visibleBlocksForItem(item).map((block, blockIndex) => (
-                      block.type === "table"
-                        ? <PreviewTable key={`${block.label}-${blockIndex}`} block={block} />
-                        : <PreviewBlock key={`${block.label}-${blockIndex}`} title={block.label} html={block.type === "backgroundNote" || block.type === "decision" ? String(block.value || "") : `<p>${String(block.value || "-")}</p>`} />
-                    ))}
-                  </article>
-                ))}
+            <div key={group} className="mb-8">
+              <div className="mb-6 text-center font-bold">
+                <p className="underline decoration-1 underline-offset-2">Section {groupIndex + 1}</p>
+                <p>({group} Items)</p>
+                {groupIndex === 0 && (
+                  <p className="mt-4 uppercase">
+                    Brief Notes on the Agenda Points for {rawMeetingNo} Meeting of BoG
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-6">
+                {groupItems.map((item) => {
+                  if (item.isActionTakenReport) {
+                    return <ActionTakenTable key={item._id || item.computedNumber} item={item} />;
+                  }
+                  return <AgendaTable key={item._id || item.computedNumber} item={item} />;
+                })}
               </div>
             </div>
           );
         })}
       </div>
-    </section>
+    </div>
   );
 }
 
-function PreviewBlock({ title, html }: { title: string; html: string }) {
+function AgendaTable({ item }: { item: MomAgendaItem & { computedNumber: string } }) {
+  const blocks = visibleBlocksForItem(item);
+  const decisionBlock = blocks.find((b) => b.type === "decision" || b.type === "actionRequired");
+  const resolutionBlock = blocks.find((b) => b.type === "resolution");
+
   return (
-    <div className="mt-3 rounded-md border border-gray-200 dark:border-gray-800">
-      <p className="border-b border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">{title}</p>
-      <div className="prose prose-sm max-w-none px-3 py-2 text-gray-600 dark:prose-invert dark:text-gray-300" dangerouslySetInnerHTML={{ __html: html }} />
+    <table className="w-full border-collapse border border-black text-left break-inside-avoid" style={{ fontSize: '11pt' }}>
+      <tbody>
+        {/* Subject Row */}
+        <tr>
+          <td className="w-[15%] border border-black bg-gray-100 p-2 align-top font-bold">
+            Subject<br />{item.computedNumber}
+          </td>
+          <td className="border border-black p-2 align-top font-bold text-justify">
+            {item.subject}
+            {blocks.map((block, i) => {
+               if (block.type !== "decision" && block.type !== "actionRequired" && block.type !== "resolution" && block.type !== "actionTaken") {
+                 if (block.type === "table") {
+                   return <PreviewTable key={i} block={block} />;
+                 }
+                 return (
+                   <div key={i} className="mt-2 font-normal">
+                     {block.type === "backgroundNote" ? (
+                       <div dangerouslySetInnerHTML={{ __html: String(block.value || "") }} className="prose-sm" />
+                     ) : (
+                       <p><strong>{block.label}:</strong> {String(block.value || "")}</p>
+                     )}
+                   </div>
+                 );
+               }
+               return null;
+            })}
+          </td>
+        </tr>
+
+        {/* Decision Row */}
+        {(decisionBlock || !resolutionBlock) && (
+          <tr>
+            <td className="w-[15%] border border-black bg-gray-100 p-2 align-top font-bold">
+              Decision
+            </td>
+            <td className="border border-black p-2 align-top text-justify">
+              {decisionBlock ? (
+                <div dangerouslySetInnerHTML={{ __html: String(decisionBlock.value || "") }} className="prose-sm" />
+              ) : (
+                <p>No decision recorded.</p>
+              )}
+            </td>
+          </tr>
+        )}
+
+        {/* Resolution Row */}
+        {resolutionBlock && (
+          <tr>
+            <td className="w-[15%] border border-black bg-gray-100 p-2 align-top font-bold">
+              Resolution
+            </td>
+            <td className="border border-black p-2 align-top text-justify">
+              <div dangerouslySetInnerHTML={{ __html: String(resolutionBlock.value || "") }} className="prose-sm" />
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+}
+
+function ActionTakenTable({ item }: { item: MomAgendaItem & { computedNumber: string } }) {
+  const blocks = visibleBlocksForItem(item);
+  const decisionBlock = blocks.find((b) => b.type === "decision");
+  const actionTakenBlock = blocks.find((b) => b.type === "actionTaken" || b.type === "status");
+
+  return (
+    <div className="break-inside-avoid">
+      <h4 className="mb-2 font-bold">{item.subject}</h4>
+      <table className="w-full border-collapse border border-black text-left" style={{ fontSize: '11pt' }}>
+        <thead>
+          <tr>
+            <th className="w-[8%] border border-black p-2 font-bold">SlNo</th>
+            <th className="w-[15%] border border-black p-2 font-bold">BG No.</th>
+            <th className="w-[45%] border border-black p-2 font-bold">Decision</th>
+            <th className="w-[32%] border border-black p-2 font-bold">Action Taken</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td className="border border-black p-2 align-top">1</td>
+            <td className="border border-black p-2 align-top">{item.computedNumber}</td>
+            <td className="border border-black p-2 align-top text-justify">
+              <div dangerouslySetInnerHTML={{ __html: String(decisionBlock?.value || "") }} className="prose-sm" />
+            </td>
+            <td className="border border-black p-2 align-top text-justify">
+              <div dangerouslySetInnerHTML={{ __html: String(actionTakenBlock?.value || "") }} className="prose-sm" />
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -112,15 +200,15 @@ function PreviewTable({ block }: { block: MomBlock }) {
   if (!value.columns.length) return null;
 
   return (
-    <div className="mt-3 overflow-x-auto">
-      <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">{block.label}</p>
-      <table className="mt-2 w-full border-collapse text-left text-sm">
-        <thead className="bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-          <tr>{value.columns.map((column, index) => <th key={`${column}-${index}`} className="border border-gray-200 px-3 py-2 dark:border-gray-800">{column || `Column ${index + 1}`}</th>)}</tr>
+    <div className="mt-3">
+      <p className="font-semibold">{block.label}</p>
+      <table className="mt-2 w-full border-collapse border border-black text-left" style={{ fontSize: '11pt' }}>
+        <thead>
+          <tr>{value.columns.map((column, index) => <th key={`${column}-${index}`} className="border border-black p-2">{column || `Column ${index + 1}`}</th>)}</tr>
         </thead>
         <tbody>
           {value.rows.map((row, rowIndex) => (
-            <tr key={`row-${rowIndex}`}>{value.columns.map((_, columnIndex) => <td key={`cell-${rowIndex}-${columnIndex}`} className="border border-gray-200 px-3 py-2 dark:border-gray-800">{row[columnIndex] || "-"}</td>)}</tr>
+            <tr key={`row-${rowIndex}`}>{value.columns.map((_, columnIndex) => <td key={`cell-${rowIndex}-${columnIndex}`} className="border border-black p-2">{row[columnIndex] || "-"}</td>)}</tr>
           ))}
         </tbody>
       </table>
