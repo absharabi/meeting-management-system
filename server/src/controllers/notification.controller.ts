@@ -86,3 +86,36 @@ export const clearAllNotifications = async (req: Request, res: Response): Promis
     res.status(500).json({ message: 'Error clearing notifications', error });
   }
 };
+
+export const clearDropdownNotification = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const notification = await Notification.findByIdAndUpdate(
+      id,
+      { isClearedFromDropdown: true },
+      { new: true }
+    );
+    
+    if (!notification) {
+      res.status(404).json({ message: 'Notification not found' });
+      return;
+    }
+
+    res.status(200).json({ message: 'Notification cleared from dropdown' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error clearing notification from dropdown', error });
+  }
+};
+
+export const clearAllDropdownNotifications = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const requestingUser = getRequestingUser(req);
+    await Notification.updateMany(
+      { recipient: requestingUser.id },
+      { isClearedFromDropdown: true }
+    );
+    res.status(200).json({ message: 'All notifications cleared from dropdown' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error clearing notifications from dropdown', error });
+  }
+};

@@ -365,7 +365,9 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
     
     // Create in-app notifications
     if (updated) {
-      const populatedMeeting = await Meeting.findById(updated._id).populate('participants.user', 'email name notificationPreferences mutedMeetings');
+      const populatedMeeting = await Meeting.findById(updated._id)
+        .populate('participants.user', 'email name notificationPreferences mutedMeetings')
+        .populate('organizerId', 'email name');
       const notificationsToCreate: any[] = [];
       
       // Add one for the organizer
@@ -380,6 +382,61 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
       populatedMeeting?.participants.forEach((p: any) => {
         const userDoc = p.user;
         if (userDoc && userDoc._id) {
+          // Send update email
+          if (userDoc.email) {
+            sendEmail(
+              userDoc.email,
+              `Meeting Updated: ${updated.title}`,
+              `<div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0f172a; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+                <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 40px 20px; text-align: center;">
+                  <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">Meeting Updated</h1>
+                  <p style="color: #fef3c7; font-size: 16px; margin: 10px 0 0 0; opacity: 0.9;">Details have been changed.</p>
+                </div>
+                <div style="padding: 30px;">
+                  <p style="color: #f8fafc; font-size: 16px; line-height: 1.6; margin-top: 0;">Hi <strong>${userDoc.name}</strong>,</p>
+                  <p style="color: #cbd5e1; font-size: 16px; line-height: 1.6;">The organizer has updated the details for this meeting. Please review the new details below.</p>
+                  <div style="background-color: #1e293b; border-left: 4px solid #f59e0b; padding: 20px; border-radius: 8px; margin: 30px 0;">
+                    <h3 style="color: #ffffff; font-size: 20px; margin: 0 0 15px 0;">${updated.title}</h3>
+                    <table width="100%" cellpadding="0" cellspacing="0" style="color: #94a3b8; font-size: 15px; line-height: 1.6;">
+                      <tr>
+                        <td width="30" style="padding-bottom: 10px;">📅</td>
+                        <td style="padding-bottom: 10px;"><strong style="color: #e2e8f0;">Date:</strong> ${new Date(updated.date).toDateString()}</td>
+                      </tr>
+                      <tr>
+                        <td width="30" style="padding-bottom: 10px;">⏰</td>
+                        <td style="padding-bottom: 10px;"><strong style="color: #e2e8f0;">Time:</strong> ${updated.startTime} - ${updated.endTime || 'End'}</td>
+                      </tr>
+                      <tr>
+                        <td width="30">📍</td>
+                        <td><strong style="color: #e2e8f0;">Venue:</strong> ${updated.venue || updated.mode}</td>
+                      </tr>
+                    </table>
+                  </div>
+                  <div style="text-align: center; margin: 40px 0 20px 0;">
+                    <a href="${process.env.FRONTEND_URL}/meetings/${updated._id}" style="display: inline-block; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff; text-decoration: none; font-weight: 600; font-size: 16px; padding: 14px 32px; border-radius: 30px;">
+                      View Updated Meeting
+                    </a>
+                  </div>
+                </div>
+                <div style="background-color: #0b1121; padding: 20px; text-align: center;">
+                  <p style="color: #64748b; font-size: 13px; margin: 0; line-height: 1.5;">
+                    Sent securely from Meeting Management System.<br>
+                    Reply directly to this email to contact the organizer.
+                  </p>
+                </div>
+              </div>`,
+              {
+                title: updated.title,
+                description: updated.description || '',
+                date: updated.date.toISOString().split('T')[0],
+                startTime: updated.startTime,
+                endTime: updated.endTime,
+                venue: updated.venue || ''
+              },
+              (populatedMeeting?.organizerId as any)?.email
+            );
+          }
+
           if (userDoc.notificationPreferences?.enabled === false) return;
           if (userDoc.notificationPreferences?.meetingUpdates === false) return;
           if (userDoc.mutedMeetings?.includes(updated._id)) return;
@@ -425,7 +482,9 @@ export const deleteMeeting = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const populatedTarget = await Meeting.findById(req.params.id).populate('participants.user', 'email name notificationPreferences mutedMeetings');
+    const populatedTarget = await Meeting.findById(req.params.id)
+      .populate('participants.user', 'email name notificationPreferences mutedMeetings')
+      .populate('organizerId', 'email name');
     const deleted = await Meeting.findByIdAndDelete(req.params.id);
 
     // Delete any existing notifications related to this meeting
@@ -445,6 +504,45 @@ export const deleteMeeting = async (req: Request, res: Response): Promise<void> 
       populatedTarget.participants.forEach((p: any) => {
         const userDoc = p.user;
         if (userDoc && userDoc._id) {
+          // Send cancellation email
+          if (userDoc.email) {
+            sendEmail(
+              userDoc.email,
+              `Meeting Cancelled: ${populatedTarget.title}`,
+              `<div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0f172a; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+                <div style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); padding: 40px 20px; text-align: center;">
+                  <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">Meeting Cancelled</h1>
+                  <p style="color: #fee2e2; font-size: 16px; margin: 10px 0 0 0; opacity: 0.9;">The meeting has been called off.</p>
+                </div>
+                <div style="padding: 30px;">
+                  <p style="color: #f8fafc; font-size: 16px; line-height: 1.6; margin-top: 0;">Hi <strong>${userDoc.name}</strong>,</p>
+                  <p style="color: #cbd5e1; font-size: 16px; line-height: 1.6;">The organizer has cancelled the following meeting.</p>
+                  <div style="background-color: #1e293b; border-left: 4px solid #ef4444; padding: 20px; border-radius: 8px; margin: 30px 0;">
+                    <h3 style="color: #ffffff; font-size: 20px; margin: 0 0 15px 0; text-decoration: line-through;">${populatedTarget.title}</h3>
+                    <table width="100%" cellpadding="0" cellspacing="0" style="color: #94a3b8; font-size: 15px; line-height: 1.6;">
+                      <tr>
+                        <td width="30" style="padding-bottom: 10px;">📅</td>
+                        <td style="padding-bottom: 10px;"><strong style="color: #e2e8f0;">Date:</strong> <span style="text-decoration: line-through;">${new Date(populatedTarget.date).toDateString()}</span></td>
+                      </tr>
+                      <tr>
+                        <td width="30" style="padding-bottom: 10px;">⏰</td>
+                        <td style="padding-bottom: 10px;"><strong style="color: #e2e8f0;">Time:</strong> <span style="text-decoration: line-through;">${populatedTarget.startTime} - ${populatedTarget.endTime || 'End'}</span></td>
+                      </tr>
+                    </table>
+                  </div>
+                </div>
+                <div style="background-color: #0b1121; padding: 20px; text-align: center;">
+                  <p style="color: #64748b; font-size: 13px; margin: 0; line-height: 1.5;">
+                    Sent securely from Meeting Management System.<br>
+                    Reply directly to this email to contact the organizer.
+                  </p>
+                </div>
+              </div>`,
+              undefined,
+              (populatedTarget.organizerId as any)?.email
+            );
+          }
+
           if (userDoc.notificationPreferences?.enabled === false) return;
           if (userDoc.notificationPreferences?.meetingUpdates === false) return;
           if (userDoc.mutedMeetings?.includes(populatedTarget._id)) return;

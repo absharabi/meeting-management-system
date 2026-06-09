@@ -7,6 +7,7 @@ export interface INotification extends Document {
   isRead: boolean;
   relatedMeeting?: mongoose.Types.ObjectId;
   actionUrl?: string;
+  isClearedFromDropdown: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -16,6 +17,7 @@ const NotificationSchema: Schema = new Schema({
   type: { type: String, required: true },
   message: { type: String, required: true },
   isRead: { type: Boolean, default: false },
+  isClearedFromDropdown: { type: Boolean, default: false },
   relatedMeeting: { type: Schema.Types.ObjectId, ref: 'Meeting' },
   actionUrl: { type: String }
 }, {

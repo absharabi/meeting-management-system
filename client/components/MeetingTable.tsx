@@ -129,14 +129,22 @@ export default function MeetingTable({
 
   const displayedMeetings = filteredMeetings.filter(meeting => {
     if (!currentUser) return true;
-    if (activeTab === 'all') return true;
 
     // Check both object structure (if populated) and raw string/objectId
     const currentUserId = currentUser.id || currentUser._id;
     const isOrganizer = meeting.organizerId?._id === currentUserId || meeting.organizerId === currentUserId;
-    const isParticipant = meeting.participants?.some(
+    
+    const participantRecord = meeting.participants?.find(
       (p: any) => p.user?._id === currentUserId || p.user === currentUserId || p.user?._id === currentUser.id || p.user?._id === currentUser._id
     );
+
+    if (participantRecord?.status === 'Declined' && !isOrganizer && currentUser.role !== 'Admin' && currentUser.role !== 'SuperAdmin') {
+      return false;
+    }
+
+    if (activeTab === 'all') return true;
+
+    const isParticipant = !!participantRecord;
 
     if (activeTab === 'created') return isOrganizer;
     if (activeTab === 'invited') return isParticipant && !isOrganizer;
@@ -359,23 +367,32 @@ export default function MeetingTable({
                             <ExternalLink size={14} /> View Details
                           </Link>
 
-                          {currentUser && meeting.participants?.some((p: any) => p.user?._id === currentUser.id || p.user?._id === currentUser._id) && (
-                            <>
-                              <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                              <button
-                                onClick={() => handleRSVP(meeting._id, 'Accepted')}
-                                className="flex items-center gap-2 px-4 py-2 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 w-full text-left"
-                              >
-                                Accept Invitation
-                              </button>
-                              <button
-                                onClick={() => handleRSVP(meeting._id, 'Declined')}
-                                className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left"
-                              >
-                                Reject
-                              </button>
-                            </>
-                          )}
+                          {currentUser && (() => {
+                            const currentUserId = currentUser.id || currentUser._id;
+                            const currentParticipant = meeting.participants?.find(
+                              (p: any) => p.user?._id === currentUserId || p.user === currentUserId
+                            );
+                            if (currentParticipant && currentParticipant.status !== 'Accepted') {
+                              return (
+                                <>
+                                  <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                                  <button
+                                    onClick={() => handleRSVP(meeting._id, 'Accepted')}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 w-full text-left"
+                                  >
+                                    Accept Invitation
+                                  </button>
+                                  <button
+                                    onClick={() => handleRSVP(meeting._id, 'Declined')}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left"
+                                  >
+                                    Reject
+                                  </button>
+                                </>
+                              );
+                            }
+                            return null;
+                          })()}
 
                           {currentUser && (meeting.organizerId?._id === currentUser.id || meeting.organizerId?._id === currentUser._id || currentUser.role === 'SuperAdmin' || currentUser.role === 'Admin') && (
                             <>

@@ -12,6 +12,7 @@ interface Notification {
   isRead: boolean;
   createdAt: string;
   actionUrl?: string;
+  isClearedFromDropdown?: boolean;
 }
 
 export default function NotificationDropdown() {
@@ -20,7 +21,8 @@ export default function NotificationDropdown() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const visibleNotifications = notifications.filter(n => !n.isClearedFromDropdown);
+  const unreadCount = visibleNotifications.filter(n => !n.isRead).length;
 
   const playNotificationSound = () => {
     try {
@@ -182,14 +184,13 @@ export default function NotificationDropdown() {
   };
 
   const clearAllNotifications = async () => {
-    if (!window.confirm('Are you sure you want to delete all notifications?')) return;
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications/clear-all`, { 
-        method: 'DELETE',
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications/clear-all-dropdown`, { 
+        method: 'PUT',
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      setNotifications([]);
+      setNotifications(notifications.map(n => ({ ...n, isClearedFromDropdown: true })));
     } catch (error) {
       console.error('Failed to clear notifications', error);
     }
@@ -199,11 +200,11 @@ export default function NotificationDropdown() {
     e.stopPropagation();
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications/${id}`, { 
-        method: 'DELETE',
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/notifications/${id}/clear-dropdown`, { 
+        method: 'PUT',
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      setNotifications(notifications.filter(n => n._id !== id));
+      setNotifications(notifications.map(n => n._id === id ? { ...n, isClearedFromDropdown: true } : n));
     } catch (error) {
       console.error('Failed to delete notification', error);
     }
@@ -250,7 +251,7 @@ export default function NotificationDropdown() {
           <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800/50">
             <h3 className="font-bold text-gray-900 dark:text-white">Notifications</h3>
             <div className="flex gap-3">
-              {notifications.length > 0 && (
+              {visibleNotifications.length > 0 && (
                 <button 
                   onClick={clearAllNotifications}
                   className="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 font-medium flex items-center gap-1"
@@ -270,13 +271,13 @@ export default function NotificationDropdown() {
           </div>
           
           <div className="max-h-80 overflow-y-auto">
-            {notifications.length === 0 ? (
+            {visibleNotifications.length === 0 ? (
               <div className="p-8 text-center text-gray-500 dark:text-gray-400 flex flex-col items-center">
                 <Bell size={32} className="mb-2 opacity-20" />
                 <p>No notifications yet</p>
               </div>
             ) : (
-              notifications.map((notification) => (
+              visibleNotifications.map((notification) => (
                 <div 
                   key={notification._id}
                   onClick={() => handleNotificationClick(notification)}
