@@ -77,11 +77,15 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
         if (!res.ok) return;
 
         const users = await res.json();
-        setAvailableUsers(users.map((user: any) => ({
-          id: user._id,
-          name: user.name,
-          email: user.email,
-        })));
+        setAvailableUsers(
+          users
+            .filter((user: any) => user.role !== 'Admin' && user.role !== 'SuperAdmin')
+            .map((user: any) => ({
+              id: user._id,
+              name: user.name,
+              email: user.email,
+            }))
+        );
       } catch {
         setAvailableUsers([]);
       }

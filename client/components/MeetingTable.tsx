@@ -239,18 +239,22 @@ export default function MeetingTable({
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mr-2">Meetings</h2>
 
             <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
-              <button
-                onClick={() => setActiveTab('created')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === 'created' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
-              >
-                Organized Meetings
-              </button>
-              <button
-                onClick={() => setActiveTab('invited')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === 'invited' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
-              >
-                Attended Meetings
-              </button>
+              {!(currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin') && (
+                <>
+                  <button
+                    onClick={() => setActiveTab('created')}
+                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === 'created' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+                  >
+                    Organized Meetings
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('invited')}
+                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === 'invited' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+                  >
+                    Attended Meetings
+                  </button>
+                </>
+              )}
               <button
                 onClick={() => setActiveTab('public')}
                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === 'public' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}

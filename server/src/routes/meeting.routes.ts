@@ -3,7 +3,8 @@ import {
   createMeeting, 
   getMeetings, 
   updateMeeting, 
-  deleteMeeting, 
+  deleteMeeting,
+  hardDeleteMeeting,
   markAttendance,
   rsvpMeeting
 } from '../controllers/meeting.controller';
@@ -19,6 +20,7 @@ router.post('/', createMeeting);
 router.get('/', getMeetings);
 router.put('/:id', updateMeeting);
 router.delete('/:id', deleteMeeting);
+router.delete('/:id/hard', hardDeleteMeeting);
 
 // Specific Feature Routes
 router.post('/:id/attendance', markAttendance);

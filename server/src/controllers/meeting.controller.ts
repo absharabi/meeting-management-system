@@ -20,8 +20,10 @@ export const createMeeting = async (req: Request, res: Response): Promise<void> 
       res.status(401).json({ message: 'Unauthorized' });
       return;
     }
-    // All authenticated users can create meetings
-
+    if (requestingUser.role === Role.SuperAdmin || requestingUser.role === Role.Admin) {
+      res.status(403).json({ message: 'Admins and SuperAdmins cannot schedule meetings.' });
+      return;
+    }
     const { date, startTime, endTime, venue, mode, participants } = req.body;
     
     const meetingDateObj = new Date(date);
@@ -34,7 +36,7 @@ export const createMeeting = async (req: Request, res: Response): Promise<void> 
 
     let finalParticipants = participants || [];
     if (req.body.visibility === 'Public') {
-      const allUsers = await User.find({}).select('_id');
+      const allUsers = await User.find({ role: { $nin: [Role.Admin, Role.SuperAdmin] } }).select('_id');
       finalParticipants = allUsers.map(user => user._id.toString());
     }
 
@@ -217,7 +219,7 @@ export const createMeeting = async (req: Request, res: Response): Promise<void> 
 
 export const getMeetings = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { keyword, status, date, venue } = req.query;
+    const { keyword, status, date, venue, momStatus } = req.query;
     const requestingUser = (req as any).user;
     
     // Build an advanced search query object
@@ -278,6 +280,9 @@ export const getMeetings = async (req: Request, res: Response): Promise<void> =>
 
     // Venue Filter
     if (venue) query.venue = venue;
+
+    // MoM Status Filter
+    if (momStatus) query.momStatus = momStatus;
 
     // Enforce data privacy for non-admins
     if (!isGlobalAdmin(requestingUser.role)) {
@@ -374,7 +379,7 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
     let finalParticipants = participants;
     
     if (updateData.visibility === 'Public') {
-      const allUsers = await User.find({}).select('_id');
+      const allUsers = await User.find({ role: { $nin: [Role.Admin, Role.SuperAdmin] } }).select('_id');
       finalParticipants = allUsers.map(user => user._id.toString());
     }
 
@@ -527,13 +532,13 @@ export const deleteMeeting = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const populatedTarget = await Meeting.findById(req.params.id)
+    const populatedTarget = await Meeting.findByIdAndUpdate(
+      req.params.id,
+      { status: MeetingStatus.Cancelled },
+      { new: true }
+    )
       .populate('participants.user', 'email name notificationPreferences mutedMeetings')
       .populate('organizerId', 'email name');
-    const deleted = await Meeting.findByIdAndDelete(req.params.id);
-
-    // Delete any existing notifications related to this meeting
-    await Notification.deleteMany({ relatedMeeting: req.params.id });
 
     // Create in-app notifications
     if (populatedTarget) {
@@ -607,9 +612,39 @@ export const deleteMeeting = async (req: Request, res: Response): Promise<void> 
       }
     }
 
-    res.json({ message: 'Meeting successfully deleted' });
+    res.json({ message: 'Meeting successfully cancelled', meeting: populatedTarget });
   } catch (error) {
     res.status(500).json({ message: 'Server error while deleting meeting', error });
+  }
+};
+
+export const hardDeleteMeeting = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const requestingUser = (req as any).user;
+    if (!requestingUser) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+    
+    if (!isGlobalAdmin(requestingUser.role)) {
+      res.status(403).json({ message: 'Only Admins or SuperAdmins can permanently delete meetings' });
+      return;
+    }
+
+    const deleted = await Meeting.findByIdAndDelete(req.params.id);
+    if (!deleted) {
+      res.status(404).json({ message: 'Meeting not found' });
+      return;
+    }
+
+    // Optionally delete related notifications, agendas, action items etc.
+    await Notification.deleteMany({ relatedMeeting: req.params.id });
+    await Agenda.deleteMany({ meetingId: req.params.id });
+    await ActionItem.deleteMany({ meetingId: req.params.id });
+
+    res.json({ message: 'Meeting permanently deleted from database' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error while permanently deleting meeting', error });
   }
 };
 

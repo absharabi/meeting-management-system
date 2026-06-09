@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Calendar, Clock, MapPin, Users, FileText, CheckCircle, Clock as ClockIcon, Download, Plus, Trash2, GripVertical, BellOff, Bell, CheckSquare, Copy } from 'lucide-react';
+import { Calendar, Clock, MapPin, Users, FileText, CheckCircle, Clock as ClockIcon, Download, Plus, Trash2, GripVertical, BellOff, Bell, CheckSquare, Copy, Edit } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -284,11 +284,12 @@ export default function MeetingDetailsPage() {
   if (isLoading) return <div className="p-8 text-center text-gray-500">Loading meeting details...</div>;
   if (!meeting) return <div className="p-8 text-center text-red-500">Meeting not found</div>;
 
+  const currentUserId = currentUser?.id || currentUser?._id;
   const isOrganizerOrAdmin = currentUser && (
     currentUser.role === 'SuperAdmin' || 
     currentUser.role === 'Admin' || 
-    meeting.organizerId === currentUser._id || 
-    meeting.organizerId?._id === currentUser._id
+    meeting.organizerId === currentUserId || 
+    meeting.organizerId?._id === currentUserId
   );
 
   const isAdminOrSuperAdmin = currentUser && (
@@ -355,35 +356,81 @@ export default function MeetingDetailsPage() {
             )}
           </div>
           
-          <div className="flex gap-2">
-            {isOrganizerOrAdmin && meeting.status !== 'Completed' && (
+          <div className="flex flex-wrap gap-2 justify-end">
+            {isOrganizerOrAdmin && meeting.status !== 'Completed' && meeting.status !== 'Cancelled' && (
+              <>
+                <button 
+                  onClick={() => router.push(`/meetings/${meetingId}/edit`)}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors"
+                >
+                  <Edit size={16} /> Edit
+                </button>
+                <button 
+                  onClick={async () => {
+                    if (!confirm('Are you sure you want to cancel this meeting?')) return;
+                    try {
+                      const token = localStorage.getItem('accessToken');
+                      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                      });
+                      if (res.ok) {
+                        fetchMeetingAndAgendas();
+                      }
+                    } catch (e) {
+                      console.error('Failed to cancel meeting', e);
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 rounded-lg text-sm font-medium transition-colors"
+                >
+                  <Trash2 size={16} /> Cancel Meeting
+                </button>
+                <button 
+                  onClick={async () => {
+                    if(!confirm('Mark this meeting as completed?')) return;
+                    try {
+                      const token = localStorage.getItem('accessToken');
+                      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({ status: 'Completed' })
+                      });
+                      fetchMeetingAndAgendas();
+                    } catch (e) {
+                      console.error('Failed to complete meeting', e);
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/40 rounded-lg text-sm font-medium transition-colors"
+                >
+                  <CheckCircle size={16} /> Mark Completed
+                </button>
+              </>
+            )}
+            
+            {isAdminOrSuperAdmin && (
               <button 
                 onClick={async () => {
-                  if(!confirm('Mark this meeting as completed?')) return;
+                  if (!confirm('CRITICAL WARNING: Are you sure you want to PERMANENTLY delete this meeting from the database? This action cannot be undone.')) return;
                   try {
                     const token = localStorage.getItem('accessToken');
-                    await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}`, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                      body: JSON.stringify({ status: 'Completed' })
+                    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/hard`, {
+                      method: 'DELETE',
+                      headers: { 'Authorization': `Bearer ${token}` }
                     });
-                    fetchMeetingAndAgendas();
+                    if (res.ok) {
+                      router.push('/meetings');
+                    } else {
+                      alert('Failed to permanently delete the meeting');
+                    }
                   } catch (e) {
-                    console.error('Failed to complete meeting', e);
+                    console.error('Failed to permanently delete meeting', e);
                   }
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/40 rounded-lg text-sm font-medium transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800 rounded-lg text-sm font-medium transition-colors shadow-sm"
               >
-                <CheckCircle size={16} /> Mark Completed
+                <Trash2 size={16} /> Delete Permanently
               </button>
             )}
-
-            <button onClick={exportPDF} className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 rounded-lg text-sm font-medium transition-colors">
-              <Download size={16} /> PDF Agenda
-            </button>
-            <button onClick={exportExcel} className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-600 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40 rounded-lg text-sm font-medium transition-colors">
-              <Download size={16} /> Excel
-            </button>
           </div>
         </div>
 
@@ -426,6 +473,14 @@ export default function MeetingDetailsPage() {
           <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <FileText className="text-blue-500" /> Meeting Agenda
           </h2>
+          <div className="flex gap-2">
+            <button onClick={exportPDF} className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 rounded-lg text-sm font-medium transition-colors">
+              <Download size={16} /> PDF Agenda
+            </button>
+            <button onClick={exportExcel} className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-600 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40 rounded-lg text-sm font-medium transition-colors">
+              <Download size={16} /> Excel
+            </button>
+          </div>
         </div>
 
         <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-8">

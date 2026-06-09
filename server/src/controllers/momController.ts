@@ -25,7 +25,9 @@ const getMomReviewers = (meeting: any) => {
   };
 
   addUser(meeting.organizerId);
-  (meeting.participants || []).forEach((participant: any) => addUser(participant.user));
+  (meeting.attendance || []).forEach((user: any) => {
+    addUser(user);
+  });
 
   return [...reviewers.values()];
 };
@@ -56,18 +58,30 @@ const hasEveryoneApproved = (meeting: any) => {
 const deriveMembersFromParticipants = (meeting: any) => {
   const mode = meeting.mode === 'Online' ? 'Online' : meeting.mode === 'Hybrid' ? 'Hybrid' : 'In person';
 
-  return (meeting.participants || [])
-    .map((participant: any) => {
-      const user = participant.user;
+  const attendees = (meeting.attendance || [])
+    .map((user: any) => {
       if (!user || typeof user === 'string') return null;
 
       return {
         name: user.name || user.email || 'Unnamed participant',
-        designation: user.department || 'Invited participant',
+        designation: user.department || 'Attendee',
         attendanceMode: mode,
       };
     })
     .filter(Boolean);
+
+  if (meeting.organizerId && typeof meeting.organizerId !== 'string') {
+    const orgName = meeting.organizerId.name || meeting.organizerId.email || 'Organizer';
+    if (!attendees.some((a: any) => a.name === orgName)) {
+      attendees.unshift({
+        name: orgName,
+        designation: meeting.organizerId.department || 'Organizer',
+        attendanceMode: mode,
+      });
+    }
+  }
+
+  return attendees;
 };
 
 const withDerivedMomMembers = (meeting: any) => {
@@ -234,7 +248,7 @@ export const saveMom = async (req: Request, res: Response): Promise<void> => {
 
     const requestingUser = (req as any).user;
     if (
-      target.organizerId.toString() !== requestingUser.id &&
+      getUserId(target.organizerId) !== requestingUser.id &&
       requestingUser.role !== 'Admin' &&
       requestingUser.role !== 'SuperAdmin'
     ) {
@@ -291,7 +305,7 @@ export const patchMom = async (req: Request, res: Response): Promise<void> => {
 
     const requestingUser = (req as any).user;
     if (
-      target.organizerId.toString() !== requestingUser.id &&
+      getUserId(target.organizerId) !== requestingUser.id &&
       requestingUser.role !== 'Admin' &&
       requestingUser.role !== 'SuperAdmin'
     ) {
@@ -431,7 +445,7 @@ export const addMomAgendaComment = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const userName = authReq.user?.name || authReq.user?.email || 'Participant';
+    const userName = (authReq.user as any)?.name || (authReq.user as any)?.email || 'Participant';
 
     const updatePath = `agendaItems.${agendaIndex}.comments`;
     

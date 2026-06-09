@@ -56,21 +56,7 @@ const getMonthRange = () => {
 };
 
 const buildMeetingScope = async (userId: string, role: string) => {
-  if (role === Role.SuperAdmin) return {};
-
-  if (role === Role.Admin) {
-    const user = await User.findById(userId).select('department');
-    if (!user?.department) return {};
-
-    const departmentUsers = await User.find({ department: user.department }).select('_id');
-    const departmentUserIds = departmentUsers.map((item) => item._id);
-    return {
-      $or: [
-        { organizerId: { $in: departmentUserIds } },
-        { 'participants.user': { $in: departmentUserIds } },
-      ],
-    };
-  }
+  if (role === Role.SuperAdmin || role === Role.Admin) return {};
 
   return {
     $or: [

@@ -77,10 +77,12 @@ export default function MeetingsPage() {
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">All Meetings</h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage, edit, and organize all your upcoming events.</p>
               </div>
-              <a href="/meetings/create" className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl shadow-md shadow-blue-500/20 transition-all flex items-center gap-2">
-                <Calendar size={16} />
-                Schedule Meeting
-              </a>
+              {currentUser?.role !== 'Admin' && currentUser?.role !== 'SuperAdmin' && (
+                <a href="/meetings/create" className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl shadow-md shadow-blue-500/20 transition-all flex items-center gap-2">
+                  <Calendar size={16} />
+                  Schedule Meeting
+                </a>
+              )}
             </header>
 
             {/* Quick Analytics Row */}
