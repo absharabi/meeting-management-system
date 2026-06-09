@@ -59,6 +59,13 @@ export interface MomAgendaItem {
   targetDate?: string;
   blocks?: MomBlock[];
   order: number;
+  comments?: {
+    _id?: string;
+    user: string;
+    userName: string;
+    text: string;
+    createdAt: string;
+  }[];
 }
 
 export interface MomCoverDetails {

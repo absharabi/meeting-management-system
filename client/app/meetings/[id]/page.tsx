@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Calendar, Clock, MapPin, Users, FileText, CheckCircle, Clock as ClockIcon, Download, Plus, Trash2, GripVertical, BellOff, Bell, CheckSquare, Copy } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -18,13 +18,14 @@ const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 export default function MeetingDetailsPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const meetingId = params.id as string;
+  const viewMode = searchParams.get('view') || 'details';
 
   const [meeting, setMeeting] = useState<any>(null);
   const [agendas, setAgendas] = useState<any[]>([]);
   const [actionItems, setActionItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isMuted, setIsMuted] = useState(false);
   const [newActionItem, setNewActionItem] = useState({ title: '', assigneeId: '', dueDate: '' });
   const [currentUser, setCurrentUser] = useState<any>(null);
   
@@ -60,9 +61,6 @@ export default function MeetingDetailsPage() {
       if (uRes.ok) {
         const user = await uRes.json();
         setCurrentUser(user);
-        if (user.mutedMeetings?.includes(meetingId)) {
-          setIsMuted(true);
-        }
       }
 
       // Fetch action items for this meeting
@@ -195,20 +193,7 @@ export default function MeetingDetailsPage() {
     }
   };
 
-  const handleToggleMute = async () => {
-    try {
-      const token = localStorage.getItem('accessToken');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users/mute-meeting/${meetingId}`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        setIsMuted(!isMuted);
-      }
-    } catch (error) {
-      console.error('Failed to toggle mute', error);
-    }
-  };
+
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -318,6 +303,11 @@ export default function MeetingDetailsPage() {
     const startTimeStr = meeting.startTime || '00:00';
     const meetingStartDateTime = new Date(`${meetingDateStr}T${startTimeStr}:00`);
     const now = new Date();
+    
+    if (meeting.meetingType === 'Emergency Meeting') {
+      return meetingStartDateTime.getTime() > now.getTime();
+    }
+    
     const hoursDiff = (meetingStartDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
     return hoursDiff >= 24;
   })();
@@ -387,17 +377,7 @@ export default function MeetingDetailsPage() {
                 <CheckCircle size={16} /> Mark Completed
               </button>
             )}
-            <button 
-              onClick={handleToggleMute} 
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isMuted 
-                  ? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' 
-                  : 'bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40'
-              }`}
-            >
-              {isMuted ? <BellOff size={16} /> : <Bell size={16} />} 
-              {isMuted ? 'Muted' : 'Mute'}
-            </button>
+
             <button onClick={exportPDF} className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 rounded-lg text-sm font-medium transition-colors">
               <Download size={16} /> PDF Agenda
             </button>
@@ -440,6 +420,7 @@ export default function MeetingDetailsPage() {
       </div>
 
       {/* Agenda Section */}
+      {viewMode === 'agenda' && (
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm overflow-hidden">
         <div className="p-6 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 flex justify-between items-center">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -515,9 +496,10 @@ export default function MeetingDetailsPage() {
 
         </div>
       </div>
+      )}
 
       {/* Offline Report Section */}
-      {(meeting.mode === 'Offline' || meeting.offlineReportFileUrl) && (
+      {viewMode === 'details' && (meeting.mode === 'Offline' || meeting.offlineReportFileUrl) && (
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm p-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -527,20 +509,32 @@ export default function MeetingDetailsPage() {
           </div>
           
           <div className="flex items-center gap-4">
-            {meeting.offlineReportFileUrl && (
-              <a 
-                href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${meeting.offlineReportFileUrl}`} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/40 rounded-lg text-sm font-medium transition-colors"
-              >
-                <Download size={16} /> Download Report
-              </a>
+            {meeting.offlineReportFileUrl ? (
+              meeting.status === 'Completed' ? (
+                <a 
+                  href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${meeting.offlineReportFileUrl}`} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/40 rounded-lg text-sm font-medium transition-colors"
+                >
+                  <Download size={16} /> Download Report
+                </a>
+              ) : (
+                <span className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-800/50 flex items-center gap-2">
+                  <ClockIcon size={14} /> Report available after completion
+                </span>
+              )
+            ) : (
+              !isOrganizerOrAdmin && (
+                <span className="text-sm text-gray-500 dark:text-gray-400 italic">
+                  Report not uploaded yet
+                </span>
+              )
             )}
             
-            {isOrganizerOrAdmin && (
+            {isOrganizerOrAdmin && !meeting.offlineReportFileUrl && (
               <label className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors">
-                <Plus size={16} /> {meeting.offlineReportFileUrl ? 'Update Report' : 'Upload Report'}
+                <Plus size={16} /> Upload Report
                 <input 
                   type="file" 
                   accept=".pdf, .xls, .xlsx" 
@@ -554,6 +548,7 @@ export default function MeetingDetailsPage() {
       )}
 
       {/* Live Notes & Action Items Section */}
+      {viewMode === 'details' && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[450px]">
         {/* Live Notes Section */}
         <div className="lg:col-span-2 h-full">
@@ -584,11 +579,7 @@ export default function MeetingDetailsPage() {
                       <span className="flex items-center gap-1">
                         <Users size={12} /> {item.assigneeId?.name || 'Unknown'}
                       </span>
-                      {item.dueDate && (
-                        <span className="flex items-center gap-1 text-amber-600">
-                          <Clock size={12} /> {new Date(item.dueDate).toLocaleDateString()}
-                        </span>
-                      )}
+                      {/* Date removed as per request */}
                     </div>
                   </div>
                 ))}
@@ -602,9 +593,7 @@ export default function MeetingDetailsPage() {
               <h4 className="font-medium text-sm text-gray-900 dark:text-white mb-3">Assign New Task</h4>
               <form onSubmit={handleAddActionItem} className="space-y-3">
                 <input required type="text" value={newActionItem.title} onChange={e => setNewActionItem({...newActionItem, title: e.target.value})} className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 text-sm" placeholder="Task Title (e.g. Prepare slides)" />
-                
-                <div className="flex gap-2">
-                  <select required value={newActionItem.assigneeId} onChange={e => setNewActionItem({...newActionItem, assigneeId: e.target.value})} className="flex-1 px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 text-sm bg-white dark:bg-gray-900">
+                  <select required value={newActionItem.assigneeId} onChange={e => setNewActionItem({...newActionItem, assigneeId: e.target.value})} className="flex-1 w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 text-sm bg-white dark:bg-gray-900">
                     <option value="" disabled>Assign To...</option>
                     {meeting.organizerId && (
                       <option value={meeting.organizerId._id}>{meeting.organizerId.name} (Org)</option>
@@ -613,10 +602,6 @@ export default function MeetingDetailsPage() {
                       <option key={p.user._id} value={p.user._id}>{p.user.name}</option>
                     ))}
                   </select>
-
-                  <input type="date" value={newActionItem.dueDate} onChange={e => setNewActionItem({...newActionItem, dueDate: e.target.value})} className="w-[130px] px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 text-sm bg-white dark:bg-gray-900" title="Due Date" />
-                </div>
-
                 <button type="submit" className="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors">
                   Assign Task
                 </button>
@@ -625,9 +610,10 @@ export default function MeetingDetailsPage() {
           )}
         </div>
       </div>
+      )}
 
       {/* Feedback Section */}
-      {meeting.status === 'Completed' && (
+      {viewMode === 'details' && meeting.status === 'Completed' && (
         <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-6 text-center">
           <h3 className="text-xl font-bold text-amber-800 dark:text-amber-400 mb-2">Rate This Meeting</h3>
           <p className="text-amber-700 dark:text-amber-500 mb-4 text-sm">How efficient was this meeting? Your feedback helps us improve.</p>

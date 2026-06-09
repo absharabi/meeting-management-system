@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Check, Trash2, ExternalLink } from 'lucide-react';
+import { Bell, Check, Trash2, ExternalLink, BellOff } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { io } from 'socket.io-client';
@@ -13,6 +13,7 @@ interface Notification {
   createdAt: string;
   actionUrl?: string;
   isClearedFromDropdown?: boolean;
+  relatedMeeting?: string;
 }
 
 export default function NotificationDropdown() {
@@ -210,6 +211,25 @@ export default function NotificationDropdown() {
     }
   };
 
+  const handleMuteMeeting = async (meetingId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users/mute-meeting/${meetingId}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        toast.success('Meeting muted successfully');
+      } else {
+        toast.error('Failed to mute meeting');
+      }
+    } catch (error) {
+      console.error('Failed to toggle mute', error);
+      toast.error('Error muting meeting');
+    }
+  };
+
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.isRead) {
       markAsRead(notification._id);
@@ -297,14 +317,25 @@ export default function NotificationDropdown() {
                     <p className="text-xs text-gray-500 dark:text-gray-400">{formatTime(notification.createdAt)}</p>
                   </div>
                   
-                  {/* Delete Button (visible on hover) */}
-                  <button 
-                    onClick={(e) => deleteNotification(notification._id, e)}
-                    className="absolute top-4 right-4 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Delete notification"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  {/* Action Buttons (visible on hover) */}
+                  <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {notification.relatedMeeting && (
+                      <button 
+                        onClick={(e) => handleMuteMeeting(notification.relatedMeeting!, e)}
+                        className="text-gray-400 hover:text-orange-500"
+                        title="Mute meeting updates"
+                      >
+                        <BellOff size={16} />
+                      </button>
+                    )}
+                    <button 
+                      onClick={(e) => deleteNotification(notification._id, e)}
+                      className="text-gray-400 hover:text-red-500"
+                      title="Clear notification"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
               ))
             )}

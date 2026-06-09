@@ -32,7 +32,18 @@ export const createMeeting = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const formattedParticipants = participants?.map((id: string) => ({ user: id, status: 'Pending' })) || [];
+    let finalParticipants = participants || [];
+    if (req.body.visibility === 'Public') {
+      const allUsers = await User.find({}).select('_id');
+      finalParticipants = allUsers.map(user => user._id.toString());
+    }
+
+    if (!finalParticipants || finalParticipants.length === 0) {
+      res.status(400).json({ message: 'At least 1 participant is required to create a meeting.' });
+      return;
+    }
+
+    const formattedParticipants = finalParticipants.map((id: string) => ({ user: id, status: 'Pending' }));
 
     // Venue Conflict Detection
     if ((mode === MeetingMode.Offline || mode === MeetingMode.Hybrid) && venue) {
@@ -293,6 +304,8 @@ export const getMeetings = async (req: Request, res: Response): Promise<void> =>
       .populate('attendance', 'name email')
       .sort({ date: 1, startTime: 1 });
 
+    console.log('GET MEETINGS QUERY:', JSON.stringify(query));
+    console.log('GET MEETINGS RESULT LENGTH:', meetings.length);
     res.json(meetings);
   } catch (error) {
     res.status(500).json({ message: 'Server error while fetching meetings', error });
@@ -324,6 +337,26 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    // Enforce 24-hour deadline for editing meeting details
+    const targetDate = new Date(target.date);
+    const meetingDateStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth()+1).padStart(2,'0')}-${String(targetDate.getDate()).padStart(2,'0')}`;
+    const startTimeStr = target.startTime || '00:00';
+    const meetingStartDateTime = new Date(`${meetingDateStr}T${startTimeStr}:00`);
+    const now = new Date();
+    
+    if (target.meetingType === 'Emergency Meeting') {
+      if (meetingStartDateTime.getTime() <= now.getTime()) {
+        res.status(400).json({ message: 'Cannot edit the emergency meeting after it has started.' });
+        return;
+      }
+    } else {
+      const hoursDiff = (meetingStartDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+      if (hoursDiff < 24) {
+        res.status(400).json({ message: 'Meeting details can only be edited up to 24 hours before the meeting.' });
+        return;
+      }
+    }
+
     // Venue Conflict Detection for Updates
     const { date, startTime, endTime, venue, mode, participants } = req.body;
     
@@ -338,9 +371,21 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
     }
 
     const updateData = { ...req.body };
-    if (participants) {
-      updateData.participants = participants.map((id: string) => ({ user: id, status: 'Pending' }));
+    let finalParticipants = participants;
+    
+    if (updateData.visibility === 'Public') {
+      const allUsers = await User.find({}).select('_id');
+      finalParticipants = allUsers.map(user => user._id.toString());
     }
+
+    if (finalParticipants) {
+      if (finalParticipants.length === 0) {
+        res.status(400).json({ message: 'At least 1 participant is required to edit a meeting.' });
+        return;
+      }
+      updateData.participants = finalParticipants.map((id: string) => ({ user: id, status: 'Pending' }));
+    }
+    
     const checkMode = mode || target.mode;
     const checkVenue = venue || target.venue;
     

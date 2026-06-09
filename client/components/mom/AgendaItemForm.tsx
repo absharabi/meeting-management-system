@@ -5,7 +5,8 @@ import dynamic from "next/dynamic";
 import { closestCenter, DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Plus, Trash2 } from "lucide-react";
+import { GripVertical, Plus, Trash2, Send, MessageSquare } from "lucide-react";
+import { useState } from "react";
 import { MomAgendaItem, MomBlock, MomBlockType, MomTableValue, SectionGroup } from "./types";
 
 const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false });
@@ -46,13 +47,17 @@ interface AgendaItemFormProps {
   onChange: (item: MomAgendaItem) => void;
   onRemove: () => void;
   disabled?: boolean;
+  onAddComment?: (agendaId: string, text: string) => Promise<void>;
+  currentUserId?: string;
 }
 
-export default function AgendaItemForm({ item, index, onChange, onRemove, disabled = false }: AgendaItemFormProps) {
+export default function AgendaItemForm({ item, index, onChange, onRemove, disabled = false, onAddComment, currentUserId }: AgendaItemFormProps) {
   const sortableId = item._id || `agenda-${index}`;
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: sortableId });
   const blockSensors = useSensors(useSensor(PointerSensor));
   const blocks = normalizeBlocks(item);
+  const [newComment, setNewComment] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -98,6 +103,19 @@ export default function AgendaItemForm({ item, index, onChange, onRemove, disabl
     const newIndex = Number(String(over.id).split("-block-").pop());
     if (Number.isNaN(oldIndex) || Number.isNaN(newIndex)) return;
     updateBlocks(arrayMove(blocks, oldIndex, newIndex));
+  };
+
+  const handleCommentSubmit = async () => {
+    if (!newComment.trim() || !onAddComment || !item._id) return;
+    setIsSubmitting(true);
+    try {
+      await onAddComment(item._id, newComment);
+      setNewComment("");
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -197,6 +215,45 @@ export default function AgendaItemForm({ item, index, onChange, onRemove, disabl
             </div>
           </SortableContext>
         </DndContext>
+      </div>
+
+      <div className="mt-6 border-t border-gray-100 pt-5 dark:border-gray-800">
+        <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
+          <MessageSquare size={16} className="text-blue-500" /> Participant Comments
+        </h4>
+        
+        {item.comments && item.comments.length > 0 && (
+          <div className="space-y-3 mb-4">
+            {item.comments.map((comment, i) => (
+              <div key={i} className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl border border-gray-100 dark:border-gray-800">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{comment.userName}</span>
+                  <span className="text-[10px] text-gray-400">{new Date(comment.createdAt).toLocaleString()}</span>
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{comment.text}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        
+        {onAddComment && currentUserId && (
+          <div className="flex items-start gap-2">
+            <textarea 
+              value={newComment} 
+              onChange={e => setNewComment(e.target.value)}
+              placeholder="Type your concern or comment here..."
+              className="flex-1 min-h-[80px] rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-800 dark:bg-gray-950 dark:text-white resize-y"
+            />
+            <button 
+              type="button"
+              onClick={handleCommentSubmit}
+              disabled={!newComment.trim() || isSubmitting}
+              className="mt-1 flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Send size={16} /> Post
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );

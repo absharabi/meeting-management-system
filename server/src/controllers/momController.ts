@@ -390,3 +390,64 @@ export const exportMom = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ message: 'Server error while exporting MoM', error });
   }
 };
+
+export const addMomAgendaComment = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as AuthRequest;
+    const currentUserId = authReq.user?.id;
+    if (!currentUserId) {
+      res.status(401).json({ message: 'Log in before adding a comment.' });
+      return;
+    }
+
+    const { text } = req.body;
+    if (!text || typeof text !== 'string' || text.trim() === '') {
+      res.status(400).json({ message: 'Comment text is required.' });
+      return;
+    }
+
+    const target = await populateMeeting(req.params.id as string);
+    if (!target) {
+      res.status(404).json({ message: 'Meeting not found' });
+      return;
+    }
+
+    if (target.momStatus === MomStatus.Confirmed) {
+      res.status(423).json({ message: 'This MoM is confirmed and locked. No new comments can be added.' });
+      return;
+    }
+
+    const reviewerIds = new Set(getMomReviewers(target).map((reviewer) => reviewer.userId));
+    if (!reviewerIds.has(currentUserId)) {
+      res.status(403).json({ message: 'Only meeting members can add comments to this MoM.' });
+      return;
+    }
+
+    const agendaId = req.params.agendaId;
+    const agendaIndex = target.agendaItems?.findIndex((item: any) => item._id.toString() === agendaId);
+    
+    if (agendaIndex === undefined || agendaIndex === -1) {
+      res.status(404).json({ message: 'Agenda item not found in this MoM.' });
+      return;
+    }
+
+    const userName = authReq.user?.name || authReq.user?.email || 'Participant';
+
+    const updatePath = `agendaItems.${agendaIndex}.comments`;
+    
+    await Meeting.findByIdAndUpdate(req.params.id as string, {
+      $push: { 
+        [updatePath]: { 
+          user: currentUserId, 
+          userName: userName,
+          text: text.trim(), 
+          createdAt: new Date() 
+        } 
+      },
+    });
+
+    res.json(withDerivedMomMembers(await populateMeeting(req.params.id as string)));
+  } catch (error) {
+    res.status(500).json({ message: 'Server error while adding MoM agenda comment', error });
+  }
+};

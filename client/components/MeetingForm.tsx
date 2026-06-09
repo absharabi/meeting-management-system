@@ -104,7 +104,14 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
   const [success, setSuccess] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData(prev => {
+      const newData = { ...prev, [name]: value };
+      if (name === 'visibility' && value === 'Public') {
+        newData.participants = availableUsers.map(user => user.id);
+      }
+      return newData;
+    });
     setError('');
   };
 
@@ -113,6 +120,12 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
     setIsSubmitting(true);
     setError('');
     setSuccess('');
+
+    if (formData.participants.length === 0) {
+      setError('At least 1 participant is required to create or edit a meeting.');
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       const url = mode === 'edit' && initialData?._id 

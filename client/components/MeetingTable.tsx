@@ -16,7 +16,8 @@ interface Meeting {
   date: string;
   startTime: string;
   status: string;
-  participants: User[];
+  meetingType?: string;
+  participants: { user: User; status: string }[];
   organizerId?: any;
   attendance?: any[];
   visibility?: string;
@@ -53,9 +54,13 @@ export default function MeetingTable({
       if (apiResponse.ok) {
         const fetchedMeetingsList = await apiResponse.json();
         setMeetings(fetchedMeetingsList);
+      } else {
+        console.error('API Error:', apiResponse.statusText);
+        toast.error(`Failed to fetch meetings: ${apiResponse.statusText}`);
       }
     } catch (error) {
       console.error('Failed to fetch meetings', error);
+      toast.error('Network error while fetching meetings');
     } finally {
       setIsLoading(false);
     }
@@ -124,7 +129,33 @@ export default function MeetingTable({
 
   const filteredMeetings = meetings.filter(meeting => {
     const matchesStatus = statusFilter === 'All' || meeting.status === statusFilter;
-    return matchesStatus;
+    
+    let matchesDate = true;
+    if (dateFilter !== 'All' && meeting.date) {
+      const meetingDate = new Date(meeting.date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (dateFilter === 'Today') {
+        matchesDate = meetingDate.toDateString() === today.toDateString();
+      } else if (dateFilter === 'This Week') {
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - today.getDay());
+        const endOfWeek = new Date(today);
+        endOfWeek.setDate(today.getDate() + (6 - today.getDay()));
+        endOfWeek.setHours(23, 59, 59, 999);
+        matchesDate = meetingDate >= startOfWeek && meetingDate <= endOfWeek;
+      } else if (dateFilter === 'Next Week') {
+        const startOfNextWeek = new Date(today);
+        startOfNextWeek.setDate(today.getDate() - today.getDay() + 7);
+        const endOfNextWeek = new Date(startOfNextWeek);
+        endOfNextWeek.setDate(startOfNextWeek.getDate() + 6);
+        endOfNextWeek.setHours(23, 59, 59, 999);
+        matchesDate = meetingDate >= startOfNextWeek && meetingDate <= endOfNextWeek;
+      }
+    }
+    
+    return matchesStatus && matchesDate;
   });
 
   const displayedMeetings = filteredMeetings.filter(meeting => {
@@ -401,7 +432,7 @@ export default function MeetingTable({
                                 Mark Attendance
                               </button>
                               <Link
-                                href={`/meetings/${meeting._id}`}
+                                href={`/meetings/${meeting._id}?view=agenda`}
                                 className="flex items-center gap-2 px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 w-full text-left"
                                 onClick={() => setOpenDropdownId(null)}
                               >
@@ -416,18 +447,36 @@ export default function MeetingTable({
                                 <FileText size={14} /> Minutes of Meeting
                               </Link>
                               
-                              {meeting.status !== 'Completed' && (
-                                <>
-                                  <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                                  <Link
-                                    href={`/meetings/${meeting._id}/edit`}
-                                    className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 w-full text-left"
-                                    onClick={() => setOpenDropdownId(null)}
-                                  >
-                                    <Edit size={14} /> Edit
-                                  </Link>
-                                </>
-                              )}
+                              {(() => {
+                                const meetingDate = new Date(meeting.date);
+                                const meetingDateStr = `${meetingDate.getFullYear()}-${String(meetingDate.getMonth()+1).padStart(2,'0')}-${String(meetingDate.getDate()).padStart(2,'0')}`;
+                                const startTimeStr = meeting.startTime || '00:00';
+                                const meetingStartDateTime = new Date(`${meetingDateStr}T${startTimeStr}:00`);
+                                const now = new Date();
+                                
+                                let canEditMeeting = meeting.status !== 'Completed';
+                                if (canEditMeeting) {
+                                  if (meeting.meetingType === 'Emergency Meeting') {
+                                    canEditMeeting = meetingStartDateTime.getTime() > now.getTime();
+                                  } else {
+                                    const hoursDiff = (meetingStartDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+                                    canEditMeeting = hoursDiff >= 24;
+                                  }
+                                }
+
+                                return canEditMeeting && (
+                                  <>
+                                    <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                                    <Link
+                                      href={`/meetings/${meeting._id}/edit`}
+                                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 w-full text-left"
+                                      onClick={() => setOpenDropdownId(null)}
+                                    >
+                                      <Edit size={14} /> Edit
+                                    </Link>
+                                  </>
+                                );
+                              })()}
                               <button
                                 onClick={() => { setOpenDropdownId(null); handleDelete(meeting._id); }}
                                 className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left"

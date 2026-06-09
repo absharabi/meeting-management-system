@@ -76,6 +76,12 @@ export interface IMeeting extends Document {
     responsiblePerson: string;
     targetDate?: Date;
     order: number;
+    comments?: {
+      user: Types.ObjectId;
+      userName: string;
+      text: string;
+      createdAt: Date;
+    }[];
   }[];
   momCoverDetails: {
     meetingNumber: string;
@@ -140,6 +146,17 @@ const AgendaItemSchema = new Schema(
     responsiblePerson: { type: String, trim: true, default: '' },
     targetDate: { type: Date, default: null },
     order: { type: Number, default: 0 },
+    comments: {
+      type: [
+        {
+          user: { type: Schema.Types.ObjectId, ref: 'User' },
+          userName: { type: String, default: 'Participant' },
+          text: { type: String, required: true },
+          createdAt: { type: Date, default: Date.now }
+        }
+      ],
+      default: []
+    }
   },
   { _id: true }
 );
@@ -159,6 +176,7 @@ const MomApprovalSchema = new Schema(
   {
     user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     approvedAt: { type: Date, default: Date.now },
+    comments: { type: String, default: '' },
   },
   { _id: false }
 );

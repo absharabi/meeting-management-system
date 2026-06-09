@@ -47,7 +47,6 @@ const getAuthHeaders = (): Record<string, string> => {
 export default function DashboardPage() {
   const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [dashboard, setDashboard] = useState<DashboardSummary>(emptyDashboard);
@@ -154,15 +153,6 @@ export default function DashboardPage() {
             ))}
           </div>
           
-          <div className="mt-8 mb-4">
-            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">System Management</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <ActionCard title="Role Assignment" description="Manage access control" icon={ShieldCheck} color="blue" onClick={() => alert('Role Assignment coming soon')} />
-              <ActionCard title="System Settings" description="Configure platform" icon={Settings} color="purple" onClick={() => alert('System Settings coming soon')} />
-              <ActionCard title="Audit Logs" description="View security logs" icon={FileText} color="amber" onClick={() => alert('Audit Logs coming soon')} />
-              <ActionCard title="Export Reports" description="Download PDF/Excel" icon={Download} color="green" onClick={() => alert('Export Reports coming soon')} />
-            </div>
-          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
             <div className="lg:col-span-2 min-h-[350px]">
@@ -173,7 +163,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="py-8">
-            <MeetingTable searchQuery={searchQuery} currentUser={currentUser} />
+            <MeetingTable currentUser={currentUser} />
           </div>
         </>
       );
@@ -196,7 +186,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="py-8">
-            <MeetingTable searchQuery={searchQuery} currentUser={currentUser} />
+            <MeetingTable currentUser={currentUser} />
           </div>
         </>
       );
@@ -228,7 +218,7 @@ export default function DashboardPage() {
         </div>
         <div className="py-8">
           {/* We pass currentUser to MeetingTable to allow it to figure out contextual actions */}
-          <MeetingTable searchQuery={searchQuery} currentUser={currentUser} />
+          <MeetingTable currentUser={currentUser} />
         </div>
       </>
     );
@@ -241,8 +231,6 @@ export default function DashboardPage() {
       <div className="flex-1 flex flex-col min-w-0">
         <Navbar 
           onMenuClick={() => setIsSidebarOpen(true)} 
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
         />
         
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50/50 dark:bg-gray-950/50 p-4 md:p-8">

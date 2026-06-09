@@ -592,8 +592,7 @@ export default function ReportsPage() {
                 <p className="text-gray-500 mt-1">Generate and export meeting data.</p>
               </div>
               <div className="flex gap-2">
-                {((activeTab === 'date' && dateReports.length > 0) || 
-                  (activeTab === 'meeting' && meetingReport)) && (
+                {activeTab === 'date' && dateReports.length > 0 && (
                   <>
                     <button onClick={exportPDF} className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 font-medium transition-colors">
                       <FileText size={18} /> PDF
@@ -602,6 +601,21 @@ export default function ReportsPage() {
                       <Download size={18} /> Excel
                     </button>
                   </>
+                )}
+                {activeTab === 'meeting' && meetingReport && meetingReport.meeting.status === 'Completed' && (
+                  <>
+                    <button onClick={exportPDF} className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 font-medium transition-colors">
+                      <FileText size={18} /> PDF
+                    </button>
+                    <button onClick={exportExcel} className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 font-medium transition-colors">
+                      <Download size={18} /> Excel
+                    </button>
+                  </>
+                )}
+                {activeTab === 'meeting' && meetingReport && meetingReport.meeting.status !== 'Completed' && (
+                  <span className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-800/50 flex items-center gap-2">
+                    Report available after completion
+                  </span>
                 )}
               </div>
             </div>

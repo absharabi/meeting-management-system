@@ -31,17 +31,24 @@ export const createAgenda = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Enforce 24-hour deadline for proposing agenda items
+    // Enforce deadline for proposing agenda items
     const meetingDate = new Date(meeting.date);
     const meetingDateStr = `${meetingDate.getFullYear()}-${String(meetingDate.getMonth()+1).padStart(2,'0')}-${String(meetingDate.getDate()).padStart(2,'0')}`;
     const startTimeStr = meeting.startTime || '00:00';
     const meetingStartDateTime = new Date(`${meetingDateStr}T${startTimeStr}:00`);
     const now = new Date();
-    const hoursDiff = (meetingStartDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
     
-    if (hoursDiff < 24) {
-      res.status(400).json({ message: 'Agenda items can only be proposed up to 24 hours before the meeting.' });
-      return;
+    if (meeting.meetingType === 'Emergency Meeting') {
+      if (meetingStartDateTime.getTime() <= now.getTime()) {
+        res.status(400).json({ message: 'Agenda items cannot be proposed after the emergency meeting has started.' });
+        return;
+      }
+    } else {
+      const hoursDiff = (meetingStartDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+      if (hoursDiff < 24) {
+        res.status(400).json({ message: 'Agenda items can only be proposed up to 24 hours before the meeting.' });
+        return;
+      }
     }
 
     // All agendas must be explicitly approved, even if created by the organizer

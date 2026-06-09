@@ -169,6 +169,18 @@ const buildLines = (meeting: IMeeting): PdfLine[] => {
         lines.push({ text: block.label, size: 10, bold: true, indent: 12 });
         lines.push({ text: blockDisplayValue(block), size: 10, indent: 24 });
       });
+
+      if (item.comments && item.comments.length > 0) {
+        lines.push({ text: 'Participant Comments', size: 10, bold: true, indent: 12 });
+        item.comments.forEach((comment: any) => {
+          const dateStr = new Date(comment.createdAt).toLocaleString('en-IN', {
+            day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+          });
+          lines.push({ text: `${comment.userName} (${dateStr}):`, size: 10, bold: true, indent: 24 });
+          lines.push({ text: comment.text, size: 10, indent: 36 });
+        });
+      }
+
       lines.push({ text: ' ' });
     });
   });

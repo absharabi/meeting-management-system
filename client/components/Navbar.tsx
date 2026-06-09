@@ -59,16 +59,18 @@ export default function Navbar({ onMenuClick, searchQuery = '', onSearchChange }
       </div>
       
       <div className="flex items-center gap-4 md:gap-6">
-        <div className="relative hidden md:block">
-          <Search className="absolute left-2.5 top-1.5 text-gray-400" size={18} />
-          <input
-            type="text"
-            placeholder="Search..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange?.(e.target.value)}
-            className="pl-9 pr-3 py-1.5 rounded-lg text-sm text-gray-900 bg-white/90 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 w-48 lg:w-64 transition-all"
-          />
-        </div>
+        {onSearchChange && (
+          <div className="relative hidden md:block">
+            <Search className="absolute left-2.5 top-1.5 text-gray-400" size={18} />
+            <input
+              type="text"
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="pl-9 pr-3 py-1.5 rounded-lg text-sm text-gray-900 bg-white/90 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 w-48 lg:w-64 transition-all"
+            />
+          </div>
+        )}
 
         {/* Theme Toggle */}
         {mounted && (
@@ -126,7 +128,7 @@ export default function Navbar({ onMenuClick, searchQuery = '', onSearchChange }
                     <p className="text-sm font-bold truncate">{currentUser?.name}</p>
                     <p className="text-xs text-gray-500 truncate">{currentUser?.email}</p>
                   </div>
-                  <Link href="/settings" className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">Profile</Link>
+                  <Link href="/profile" className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">Profile</Link>
                   <Link href="/settings" className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">Settings</Link>
                   <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                   <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">Logout</button>

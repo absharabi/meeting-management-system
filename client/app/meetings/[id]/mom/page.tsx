@@ -329,6 +329,32 @@ export default function MomPage() {
     }
   };
 
+  const addAgendaComment = async (agendaId: string, text: string) => {
+    try {
+      const token = localStorage.getItem("accessToken");
+      const headers: HeadersInit = { 
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      };
+      const response = await fetch(`${API_BASE}/${params.id}/mom/agendas/${agendaId}/comments`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ text }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Unable to add comment.");
+
+      setMeeting(data);
+      setMembersPresent(deriveMembersFromParticipants(data));
+      setMomCoverDetails(mergeCoverDetails(data, data.momCoverDetails));
+      setAgendaItems(normalizeAgendaItems(data.agendaItems || []));
+      setMomStatus(data.momStatus || "Draft");
+      setNotice({ message: "Comment added successfully.", type: "success" });
+    } catch (error) {
+      setNotice({ message: error instanceof Error ? error.message : "Unable to add comment.", type: "error" });
+    }
+  };
+
   if (isLoading) {
     return <main className="min-h-screen bg-gray-50 p-8 text-gray-700 dark:bg-gray-950 dark:text-gray-200">Loading MoM...</main>;
   }
@@ -570,6 +596,8 @@ export default function MomPage() {
                   onChange={(nextItem) => updateAgendaItem(index, nextItem)}
                   onRemove={() => setAgendaItems((current) => current.filter((_, itemIndex) => itemIndex !== index))}
                   disabled={!canEdit}
+                  onAddComment={addAgendaComment}
+                  currentUserId={currentUserId}
                 />
               ))}
             </div>
