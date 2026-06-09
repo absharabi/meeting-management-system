@@ -205,8 +205,8 @@ export default function DashboardPage() {
           <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Quick Actions</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <ActionCard title="Schedule Meeting" description="Create a new event" icon={CalendarPlus} color="blue" onClick={() => router.push('/meetings/create')} />
-            <ActionCard title="Manage Agendas" description="Attach meeting agendas" icon={FileText} color="purple" onClick={() => router.push('/meetings')} />
-            <ActionCard title="Live Notifications" description="Send reminders" icon={Bell} color="amber" onClick={() => alert('Live notifications coming soon')} />
+            <ActionCard title="Manage Agendas" description="Go to Meetings to manage" icon={FileText} color="purple" onClick={() => router.push('/meetings')} />
+            <ActionCard title="Live Notifications" description="Configure reminders" icon={Bell} color="amber" onClick={() => router.push('/settings')} />
             <ActionCard title="Start Online Sync" description="Google Meet Integration" icon={Video} color="green" onClick={() => window.open('https://meet.google.com/new', '_blank')} />
           </div>
         </div>

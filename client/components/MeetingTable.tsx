@@ -36,7 +36,7 @@ export default function MeetingTable({
   const [dateFilter, setDateFilter] = useState('All');
   const [isLoading, setIsLoading] = useState(true);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'created' | 'invited' | 'public' | 'all'>('created');
+  const [activeTab, setActiveTab] = useState<'all' | 'created' | 'invited' | 'public'>('all');
 
   // Attendance Modal State
   const [attendanceModalMeeting, setAttendanceModalMeeting] = useState<Meeting | null>(null);
@@ -241,6 +241,12 @@ export default function MeetingTable({
             <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
               {!(currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin') && (
                 <>
+                  <button
+                    onClick={() => setActiveTab('all')}
+                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === 'all' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+                  >
+                    All Meetings
+                  </button>
                   <button
                     onClick={() => setActiveTab('created')}
                     className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === 'created' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}

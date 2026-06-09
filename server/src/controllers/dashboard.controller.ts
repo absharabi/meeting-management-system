@@ -196,7 +196,8 @@ const buildStats = async (scope: any, role: string, userId: string) => {
   }
 
   const objectUserId = new mongoose.Types.ObjectId(userId);
-  const [organized, upcomingParticipations, pendingInvitations, attendanceAverage, openActionItems] = await Promise.all([
+  const [totalMeetings, organized, upcomingParticipations, pendingInvitations, attendanceAverage, openActionItems] = await Promise.all([
+    countMeetings(scope),
     Meeting.countDocuments({ organizerId: userId }),
     Meeting.countDocuments({ 'participants.user': userId, ...upcomingFilter }),
     Meeting.countDocuments({ participants: { $elemMatch: { user: objectUserId, status: 'Pending' } } }),
@@ -205,10 +206,10 @@ const buildStats = async (scope: any, role: string, userId: string) => {
   ]);
 
   return [
-    { id: 1, title: 'Meetings Organized', value: formatNumber(organized), description: 'Created by you' },
-    { id: 2, title: 'Upcoming Participations', value: formatNumber(upcomingParticipations), description: 'Scheduled from today onward' },
-    { id: 3, title: 'Pending Invitations', value: formatNumber(pendingInvitations), description: 'Requires RSVP' },
-    { id: 4, title: 'Open Action Items', value: formatNumber(openActionItems), description: 'Assigned to you' },
+    { id: 1, title: 'All Meetings', value: formatNumber(totalMeetings), description: 'Meetings you can access' },
+    { id: 2, title: 'Meetings Organized', value: formatNumber(organized), description: 'Created by you' },
+    { id: 3, title: 'Upcoming Participations', value: formatNumber(upcomingParticipations), description: 'Scheduled from today onward' },
+    { id: 4, title: 'Pending Invitations', value: formatNumber(pendingInvitations), description: 'Requires RSVP' },
     { id: 5, title: 'Attendance', value: formatPercentage(attendanceAverage), description: 'Completed meetings attended' },
   ];
 };
