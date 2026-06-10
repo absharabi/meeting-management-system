@@ -484,36 +484,6 @@ export default function MeetingTable({
                                 </>
                               )}
                               
-                              {(() => {
-                                const meetingDate = new Date(meeting.date);
-                                const meetingDateStr = `${meetingDate.getFullYear()}-${String(meetingDate.getMonth()+1).padStart(2,'0')}-${String(meetingDate.getDate()).padStart(2,'0')}`;
-                                const startTimeStr = meeting.startTime || '00:00';
-                                const meetingStartDateTime = new Date(`${meetingDateStr}T${startTimeStr}:00`);
-                                const now = new Date();
-                                
-                                let canEditMeeting = meeting.status !== 'Completed';
-                                if (canEditMeeting) {
-                                  if (meeting.meetingType === 'Emergency Meeting') {
-                                    canEditMeeting = meetingStartDateTime.getTime() > now.getTime();
-                                  } else {
-                                    const hoursDiff = (meetingStartDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-                                    canEditMeeting = hoursDiff >= 24;
-                                  }
-                                }
-
-                                return canEditMeeting && (
-                                  <>
-                                    <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                                    <Link
-                                      href={`/meetings/${meeting._id}/edit`}
-                                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 w-full text-left"
-                                      onClick={() => setOpenDropdownId(null)}
-                                    >
-                                      <Edit size={14} /> Edit
-                                    </Link>
-                                  </>
-                                );
-                              })()}
 
                             </>
                           )}

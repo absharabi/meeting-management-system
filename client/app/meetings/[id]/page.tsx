@@ -357,14 +357,16 @@ export default function MeetingDetailsPage() {
           </div>
           
           <div className="flex flex-wrap gap-2 justify-end">
+            {isOrganizerOrAdmin && meeting.status !== 'Completed' && meeting.status !== 'Cancelled' && isAgendaProposalAllowed && (
+              <button 
+                onClick={() => router.push(`/meetings/${meetingId}/edit`)}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors"
+              >
+                <Edit size={16} /> Edit
+              </button>
+            )}
             {isOrganizerOrAdmin && meeting.status !== 'Completed' && meeting.status !== 'Cancelled' && (
               <>
-                <button 
-                  onClick={() => router.push(`/meetings/${meetingId}/edit`)}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors"
-                >
-                  <Edit size={16} /> Edit
-                </button>
                 <button 
                   onClick={async () => {
                     if (!confirm('Are you sure you want to cancel this meeting?')) return;
