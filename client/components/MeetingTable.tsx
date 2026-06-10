@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MoreHorizontal, Edit, Trash2, ExternalLink, FileText, X } from 'lucide-react';
+import { MoreHorizontal, Edit, Trash2, ExternalLink, FileText, X, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
@@ -257,7 +257,7 @@ export default function MeetingTable({
                     onClick={() => setActiveTab('invited')}
                     className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === 'invited' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
                   >
-                    Attended Meetings
+                    Invited Meetings
                   </button>
                 </>
               )}
@@ -350,23 +350,40 @@ export default function MeetingTable({
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex -space-x-2">
-                      {meeting.participants?.slice(0, 3).map((p: any, i) => {
-                        const user = p.user;
-                        if (!user) return null;
+                      {(() => {
+                        const allUsers: any[] = [];
+                        const organizerIdStr = meeting.organizerId?._id || meeting.organizerId;
+                        if (meeting.organizerId && typeof meeting.organizerId === 'object' && meeting.organizerId.name) {
+                          allUsers.push({ user: meeting.organizerId, status: 'Organizer' });
+                        }
+                        if (meeting.participants && Array.isArray(meeting.participants)) {
+                          const uniqueParticipants = meeting.participants.filter((p: any) => p.user && p.user._id !== organizerIdStr);
+                          allUsers.push(...uniqueParticipants);
+                        }
+                        
+                        if (allUsers.length === 0) {
+                          return <span className="text-gray-400">None</span>;
+                        }
+
                         return (
-                          <div key={user._id} title={`${user.name} (${p.status})`} className={`w-8 h-8 rounded-full border-2 border-white dark:border-gray-800 flex items-center justify-center text-xs font-medium z-10 ${p.status === 'Accepted' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : p.status === 'Declined' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'}`}>
-                            {user.name?.charAt(0) || '?'}
-                          </div>
+                          <>
+                            {allUsers.slice(0, 3).map((p: any, i) => {
+                              const user = p.user;
+                              if (!user) return null;
+                              return (
+                                <div key={`${user._id}-${i}`} title={`${user.name} (${p.status})`} className={`w-8 h-8 rounded-full border-2 border-white dark:border-gray-800 flex items-center justify-center text-xs font-medium z-10 ${p.status === 'Accepted' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : p.status === 'Declined' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'}`}>
+                                  {user.name?.charAt(0) || '?'}
+                                </div>
+                              );
+                            })}
+                            {allUsers.length > 3 && (
+                              <div className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800 bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-600 dark:text-gray-300 font-medium z-0">
+                                +{allUsers.length - 3}
+                              </div>
+                            )}
+                          </>
                         );
-                      })}
-                      {meeting.participants?.length > 3 && (
-                        <div className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800 bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-600 dark:text-gray-300 font-medium z-0">
-                          +{meeting.participants.length - 3}
-                        </div>
-                      )}
-                      {(!meeting.participants || meeting.participants.length === 0) && (
-                        <span className="text-gray-400">None</span>
-                      )}
+                      })()}
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -389,12 +406,43 @@ export default function MeetingTable({
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right relative">
-                    <button
-                      onClick={() => setOpenDropdownId(openDropdownId === meeting._id ? null : meeting._id)}
-                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-                    >
-                      <MoreHorizontal size={18} />
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      {currentUser && (() => {
+                        const currentUserId = currentUser.id || currentUser._id;
+                        const currentParticipant = meeting.participants?.find(
+                          (p: any) => p.user?._id === currentUserId || p.user === currentUserId
+                        );
+                        if (currentParticipant && currentParticipant.status !== 'Accepted' && (meeting.status === 'Scheduled' || meeting.status === 'Ongoing')) {
+                          return (
+                            <div className="flex items-center gap-1 mr-2">
+                              <button
+                                onClick={() => handleRSVP(meeting._id, 'Accepted')}
+                                className="flex flex-col items-center justify-center p-1.5 px-3 text-xs font-medium text-white bg-gray-800 rounded-lg hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
+                                title="Accept"
+                              >
+                                <Check size={16} className="mb-0.5" />
+                                Accept
+                              </button>
+                              <button
+                                onClick={() => handleRSVP(meeting._id, 'Declined')}
+                                className="flex flex-col items-center justify-center p-1.5 px-3 text-xs font-medium text-white bg-gray-800 rounded-lg hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
+                                title="Decline"
+                              >
+                                <X size={16} className="mb-0.5" />
+                                Decline
+                              </button>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                      <button
+                        onClick={() => setOpenDropdownId(openDropdownId === meeting._id ? null : meeting._id)}
+                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                      >
+                        <MoreHorizontal size={18} />
+                      </button>
+                    </div>
 
                     {/* Dropdown Menu */}
                     {openDropdownId === meeting._id && (
@@ -408,32 +456,7 @@ export default function MeetingTable({
                             <ExternalLink size={14} /> View Details
                           </Link>
 
-                          {currentUser && (() => {
-                            const currentUserId = currentUser.id || currentUser._id;
-                            const currentParticipant = meeting.participants?.find(
-                              (p: any) => p.user?._id === currentUserId || p.user === currentUserId
-                            );
-                            if (currentParticipant && currentParticipant.status !== 'Accepted') {
-                              return (
-                                <>
-                                  <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                                  <button
-                                    onClick={() => handleRSVP(meeting._id, 'Accepted')}
-                                    className="flex items-center gap-2 px-4 py-2 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 w-full text-left"
-                                  >
-                                    Accept Invitation
-                                  </button>
-                                  <button
-                                    onClick={() => handleRSVP(meeting._id, 'Declined')}
-                                    className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left"
-                                  >
-                                    Reject
-                                  </button>
-                                </>
-                              );
-                            }
-                            return null;
-                          })()}
+
 
                           {currentUser && (meeting.organizerId?._id === currentUser.id || meeting.organizerId?._id === currentUser._id || currentUser.role === 'SuperAdmin' || currentUser.role === 'Admin') && (
                             <>
@@ -441,13 +464,15 @@ export default function MeetingTable({
                               <button onClick={() => openAttendanceModal(meeting)} className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 w-full text-left">
                                 Mark Attendance
                               </button>
-                              <Link
-                                href={`/meetings/${meeting._id}?view=agenda`}
-                                className="flex items-center gap-2 px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 w-full text-left"
-                                onClick={() => setOpenDropdownId(null)}
-                              >
-                                Manage Agenda
-                              </Link>
+                              {meeting.status !== 'Completed' && (
+                                <Link
+                                  href={`/meetings/${meeting._id}?view=agenda`}
+                                  className="flex items-center gap-2 px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 w-full text-left"
+                                  onClick={() => setOpenDropdownId(null)}
+                                >
+                                  Manage Agenda
+                                </Link>
+                              )}
                               <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                               <Link
                                 href={`/meetings/${meeting._id}/mom`}
@@ -487,12 +512,7 @@ export default function MeetingTable({
                                   </>
                                 );
                               })()}
-                              <button
-                                onClick={() => { setOpenDropdownId(null); handleDelete(meeting._id); }}
-                                className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left"
-                              >
-                                <Trash2 size={14} /> Delete
-                              </button>
+
                             </>
                           )}
 
@@ -500,6 +520,15 @@ export default function MeetingTable({
                           {currentUser && meeting.participants?.some((p: any) => p.user?._id === currentUser.id || p.user?._id === currentUser._id) && !(meeting.organizerId?._id === currentUser.id || meeting.organizerId?._id === currentUser._id || currentUser.role === 'SuperAdmin' || currentUser.role === 'Admin') && (
                             <>
                               <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                              {meeting.status !== 'Completed' && (
+                                <Link
+                                  href={`/meetings/${meeting._id}?view=agenda`}
+                                  className="flex items-center gap-2 px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 w-full text-left"
+                                  onClick={() => setOpenDropdownId(null)}
+                                >
+                                  Manage Agenda
+                                </Link>
+                              )}
                               <Link
                                 href={`/meetings/${meeting._id}/mom`}
                                 className="flex items-center gap-2 px-4 py-2 text-sm text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 w-full text-left"

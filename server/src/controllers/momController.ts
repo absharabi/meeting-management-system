@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import Meeting, { MomStatus } from '../models/Meeting';
 import { generateMomPdf } from '../utils/generateMomPdf';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { sendEmail } from '../utils/email';
 
 const populateMeeting = (id: string) => Meeting.findById(id)
   .populate('organizerId', 'name email department')
@@ -288,7 +289,52 @@ export const saveMom = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    res.json(withDerivedMomMembers(await populateMeeting(req.params.id as string)));
+    const populatedMeeting = await populateMeeting(req.params.id as string);
+
+    if (populatedMeeting) {
+      const allReviewers = getMomReviewers(populatedMeeting);
+      const isConfirmed = momStatus === MomStatus.Confirmed;
+      
+      const subject = isConfirmed 
+        ? `MoM Finalized: ${populatedMeeting.title}` 
+        : `MoM Ready for Review: ${populatedMeeting.title}`;
+        
+      const htmlBody = isConfirmed
+        ? `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8fafc; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Minutes of Meeting Finalized</h1>
+            </div>
+            <div style="padding: 30px;">
+              <p style="font-size: 16px; color: #334155;">Hello,</p>
+              <p style="font-size: 16px; color: #475569;">The Minutes of Meeting for <strong>${populatedMeeting.title}</strong> have received all approvals and are now finalized and locked.</p>
+              <p style="font-size: 16px; color: #475569;">You can now view or download the official PDF document from the dashboard.</p>
+              <div style="text-align: center; margin-top: 30px;">
+                <a href="${process.env.FRONTEND_URL}/meetings/${populatedMeeting._id}/mom" style="display: inline-block; background-color: #10b981; color: white; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold;">View Final MoM</a>
+              </div>
+            </div>
+          </div>`
+        : `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8fafc; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 30px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Minutes of Meeting Ready for Review</h1>
+            </div>
+            <div style="padding: 30px;">
+              <p style="font-size: 16px; color: #334155;">Hello,</p>
+              <p style="font-size: 16px; color: #475569;">The organizer has drafted the Minutes of Meeting for <strong>${populatedMeeting.title}</strong>.</p>
+              <p style="font-size: 16px; color: #475569;">Please log in to review the details. While reviewing, you can add comments to the agenda items if necessary. Once you are satisfied, please provide your approval.</p>
+              <div style="text-align: center; margin-top: 30px;">
+                <a href="${process.env.FRONTEND_URL}/meetings/${populatedMeeting._id}/mom" style="display: inline-block; background-color: #3b82f6; color: white; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold;">Review & Approve MoM</a>
+              </div>
+            </div>
+          </div>`;
+
+      allReviewers.forEach(reviewer => {
+        if (reviewer.email) {
+          sendEmail(reviewer.email, subject, htmlBody);
+        }
+      });
+    }
+
+    res.json(withDerivedMomMembers(populatedMeeting));
   } catch (error) {
     res.status(500).json({ message: 'Server error while saving MoM', error });
   }
@@ -333,7 +379,32 @@ export const patchMom = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    res.json(withDerivedMomMembers(await populateMeeting(req.params.id as string)));
+    const populatedMeeting = await populateMeeting(req.params.id as string);
+
+    if (populatedMeeting && req.body.momStatus === MomStatus.Confirmed && target.momStatus !== MomStatus.Confirmed) {
+      const allReviewers = getMomReviewers(populatedMeeting);
+      const subject = `MoM Finalized: ${populatedMeeting.title}`;
+      const htmlBody = `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8fafc; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Minutes of Meeting Finalized</h1>
+            </div>
+            <div style="padding: 30px;">
+              <p style="font-size: 16px; color: #334155;">Hello,</p>
+              <p style="font-size: 16px; color: #475569;">The Minutes of Meeting for <strong>${populatedMeeting.title}</strong> have received all approvals and are now finalized and locked.</p>
+              <p style="font-size: 16px; color: #475569;">You can now view or download the official PDF document from the dashboard.</p>
+              <div style="text-align: center; margin-top: 30px;">
+                <a href="${process.env.FRONTEND_URL}/meetings/${populatedMeeting._id}/mom" style="display: inline-block; background-color: #10b981; color: white; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold;">View Final MoM</a>
+              </div>
+            </div>
+          </div>`;
+      allReviewers.forEach(reviewer => {
+        if (reviewer.email) {
+          sendEmail(reviewer.email, subject, htmlBody);
+        }
+      });
+    }
+
+    res.json(withDerivedMomMembers(populatedMeeting));
   } catch (error) {
     res.status(500).json({ message: 'Server error while updating MoM', error });
   }
