@@ -103,4 +103,6 @@ export interface MomMeeting {
   momApprovalStatus?: MomApprovalStatus[];
   momGeneralRemarks?: { user: string; userName: string; text: string; createdAt: string }[];
   momStatus: MomStatus;
+  offlineMomFileUrl?: string | null;
+  isOfflineMomUploaded?: boolean;
 }

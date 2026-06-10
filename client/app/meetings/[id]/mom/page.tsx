@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { closestCenter, DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { ArrowLeft, CheckCircle2, Download, Lock, Plus, RefreshCw, Save, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, Lock, Plus, RefreshCw, Save, ShieldCheck, Sparkles, Upload, Trash2, FileText, AlertCircle } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import "react-quill-new/dist/quill.snow.css";
@@ -65,7 +65,75 @@ export default function MomPage() {
   const [notice, setNotice] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [newGeneralRemark, setNewGeneralRemark] = useState("");
+  const [isUploadingMom, setIsUploadingMom] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor));
+
+  const handleOfflineMomUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const allowedExtensions = ['.pdf', '.doc', '.docx'];
+    const extension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    if (!allowedExtensions.includes(extension)) {
+      window.alert("Only PDF and Word files (.doc, .docx) are allowed.");
+      return;
+    }
+
+    setIsUploadingMom(true);
+    const formData = new FormData();
+    formData.append("momFile", file);
+
+    try {
+      const token = localStorage.getItem("accessToken");
+      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+
+      const response = await fetch(`${API_BASE}/${params.id}/upload-mom`, {
+        method: "POST",
+        headers,
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to upload MoM file.");
+      }
+
+      setMeeting(data.meeting);
+      setNotice({ message: "Offline MoM document uploaded successfully.", type: "success" });
+    } catch (error) {
+      console.error(error);
+      setNotice({ message: error instanceof Error ? error.message : "Failed to upload MoM file.", type: "error" });
+    } finally {
+      setIsUploadingMom(false);
+    }
+  };
+
+  const handleOfflineMomDelete = async () => {
+    if (!window.confirm("Are you sure you want to delete the uploaded offline MoM document?")) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("accessToken");
+      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+
+      const response = await fetch(`${API_BASE}/${params.id}/upload-mom`, {
+        method: "DELETE",
+        headers,
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to delete MoM file.");
+      }
+
+      setMeeting(data.meeting);
+      setNotice({ message: "Offline MoM document deleted successfully.", type: "success" });
+    } catch (error) {
+      console.error(error);
+      setNotice({ message: error instanceof Error ? error.message : "Failed to delete MoM file.", type: "error" });
+    }
+  };
 
   const loadMom = useCallback(async () => {
     setIsLoading(true);
@@ -458,6 +526,68 @@ export default function MomPage() {
             This MoM is confirmed and locked. No further edits, agenda changes, transcript fills, or approvals can be made.
           </div>
         )}
+
+        {/* Offline MoM Document Section */}
+        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900 transition hover:shadow-md">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <FileText className="text-blue-600 dark:text-blue-400" size={20} />
+                <h2 className="font-bold text-gray-900 dark:text-white text-lg">Offline MoM Document</h2>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                If you compiled the Minutes of Meeting outside this platform, upload the final PDF or Word file here.
+              </p>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              {meeting.offlineMomFileUrl ? (
+                <>
+                  <a
+                    href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${meeting.offlineMomFileUrl}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30 transition duration-150"
+                  >
+                    <Download size={16} />
+                    Download Offline MoM
+                  </a>
+                  {isOrganizerOrAdmin && !isConfirmed && (
+                    <button
+                      onClick={handleOfflineMomDelete}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-900/20 transition duration-150"
+                    >
+                      <Trash2 size={16} />
+                      Delete MoM File
+                    </button>
+                  )}
+                </>
+              ) : meeting.isOfflineMomUploaded ? (
+                <span className="inline-flex items-center gap-1.5 text-sm text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-100 dark:bg-amber-950/30 dark:border-amber-900/40 dark:text-amber-400 font-semibold">
+                  <AlertCircle size={15} />
+                  Offline MoM uploaded (pending confirmation)
+                </span>
+              ) : isOrganizerOrAdmin ? (
+                <label className={`relative flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-5 py-3 text-sm font-semibold text-gray-600 hover:bg-gray-100 hover:border-blue-500 hover:text-blue-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:border-blue-500 dark:hover:text-blue-400 transition duration-150 ${isUploadingMom ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''}`}>
+                  <Upload size={16} className={isUploadingMom ? 'animate-bounce' : ''} />
+                  <span>{isUploadingMom ? 'Uploading...' : 'Upload MoM (PDF/Word)'}</span>
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={handleOfflineMomUpload}
+                    disabled={isUploadingMom}
+                    className="hidden"
+                  />
+                </label>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-sm text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100 dark:bg-gray-950 dark:border-gray-800 dark:text-gray-400">
+                  <AlertCircle size={15} />
+                  No offline MoM document uploaded yet
+                </span>
+              )}
+            </div>
+          </div>
+        </section>
 
         <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
           <div className="mb-4">

@@ -54,6 +54,7 @@ export interface IMeeting extends Document {
   groupId?:     string;
   recurrencePattern?: string;
   offlineReportFileUrl?: string;
+  offlineMomFileUrl?: string;
   membersPresent: {
     name: string;
     designation: string;
@@ -261,6 +262,10 @@ const MeetingSchema = new Schema<IMeeting>(
       default: 'None'
     },
     offlineReportFileUrl: {
+      type: String,
+      default: null
+    },
+    offlineMomFileUrl: {
       type: String,
       default: null
     },

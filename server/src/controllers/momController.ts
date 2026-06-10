@@ -4,7 +4,7 @@ import { generateMomPdf } from '../utils/generateMomPdf';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { sendEmail } from '../utils/email';
 
-const populateMeeting = (id: string) => Meeting.findById(id)
+export const populateMeeting = (id: string) => Meeting.findById(id)
   .populate('organizerId', 'name email department')
   .populate('participants.user', 'name email department')
   .populate('momApprovals.user', 'name email department')
@@ -91,7 +91,7 @@ const deriveMembersFromParticipants = (meeting: any) => {
   });
 };
 
-const withDerivedMomMembers = (meeting: any) => {
+export const withDerivedMomMembers = (meeting: any) => {
   if (!meeting) return meeting;
   const meetingObject = typeof meeting.toObject === 'function' ? meeting.toObject() : meeting;
   return {
@@ -99,6 +99,7 @@ const withDerivedMomMembers = (meeting: any) => {
     membersPresent: deriveMembersFromParticipants(meetingObject),
     momCoverDetails: buildCoverDetailsFromMeeting(meetingObject, meetingObject.momCoverDetails),
     momApprovalStatus: buildApprovalStatus(meetingObject),
+    isOfflineMomUploaded: !!meetingObject.offlineMomFileUrl,
   };
 };
 
@@ -260,7 +261,11 @@ export const getMom = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    res.json(withDerivedMomMembers(meeting));
+    const result = withDerivedMomMembers(meeting);
+    if (!isOrganizerOrAdmin && meeting.momStatus !== MomStatus.Confirmed) {
+      result.offlineMomFileUrl = null;
+    }
+    res.json(result);
   } catch (error) {
     res.status(500).json({ message: 'Server error while loading MoM', error });
   }
