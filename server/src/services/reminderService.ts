@@ -12,8 +12,7 @@ export const initReminderService = () => {
       const startOfDay = new Date(currentTime);
       startOfDay.setHours(0, 0, 0, 0);
       
-      console.log(`[Cron] Checking for meeting reminders at ${currentTime.toLocaleTimeString()}`);
-      
+      // Note: We need to monitor if node-cron drops jobs under heavy load. Might need to switch to Agenda or BullMQ later.
       // Look for meetings that are active and not cancelled
       const upcomingMeetings = await Meeting.find({
         status: { $ne: MeetingStatus.Cancelled },
@@ -37,7 +36,7 @@ export const initReminderService = () => {
         const timeDifferenceMs = meetingStart.getTime() - currentTime.getTime();
         const minutesUntilMeeting = Math.round(timeDifferenceMs / 60000); 
         
-        console.log(`[Cron Debug] Meeting: ${meeting.title} | Start: ${meetingStart.toLocaleTimeString()} | Now: ${currentTime.toLocaleTimeString()} | Diff (mins): ${minutesUntilMeeting}`);
+
 
         let reminderMessage = '';
         let reminderType = '';
@@ -96,7 +95,7 @@ export const initReminderService = () => {
             createdNotifications.forEach((notification) => {
               emitNotification(notification.recipient.toString(), notification);
             });
-            console.log(`Dispatched ${notificationsToCreate.length} reminders for meeting ${meeting._id}`);
+
           }
         }
       }

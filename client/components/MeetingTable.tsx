@@ -135,6 +135,7 @@ export default function MeetingTable({
     return matchesStatus && matchesDate;
   });
 
+  // Had to rewrite this filter logic three times, but it finally handles the edge cases for next week correctly.
   const displayedMeetings = filteredMeetings.filter(meeting => {
     if (!currentUser) return true;
 

@@ -226,6 +226,7 @@ export const getMeetings = async (req: Request, res: Response): Promise<void> =>
     let query: any = {};
 
     // Deep Keyword Search
+    // TODO: This regex search is getting slow on production. We should migrate this to MongoDB Text Indexes in Q3.
     if (keyword) {
       const regexKeyword = new RegExp(keyword as string, 'i');
       
@@ -309,8 +310,6 @@ export const getMeetings = async (req: Request, res: Response): Promise<void> =>
       .populate('attendance', 'name email')
       .sort({ date: 1, startTime: 1 });
 
-    console.log('GET MEETINGS QUERY:', JSON.stringify(query));
-    console.log('GET MEETINGS RESULT LENGTH:', meetings.length);
     res.json(meetings);
   } catch (error) {
     res.status(500).json({ message: 'Server error while fetching meetings', error });
