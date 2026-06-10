@@ -470,7 +470,7 @@ export default function ReportsPage() {
       doc.setFontSize(10);
       doc.setTextColor(themeSecondary[0], themeSecondary[1], themeSecondary[2]);
 
-      const approvals = meeting?.momApprovals?.filter((a: any) => a.status === 'Approved') || [];
+      const approvals = meeting?.momApprovals || [];
       
       if (approvals.length > 0) {
         // List people who approved

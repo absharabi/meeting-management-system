@@ -232,6 +232,26 @@ export const getMom = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    const authReq = req as AuthRequest;
+    const currentUserId = authReq.user?.id;
+    const isOrganizerOrAdmin = 
+      authReq.user?.role === 'Admin' || 
+      authReq.user?.role === 'SuperAdmin' || 
+      meeting.organizerId?._id?.toString() === currentUserId ||
+      meeting.organizerId?.id === currentUserId;
+      
+    const isPresent = (meeting.attendance || []).some((user: any) => user?._id?.toString() === currentUserId || user?.id === currentUserId);
+
+    if (!isOrganizerOrAdmin && !isPresent) {
+      res.status(403).json({ message: 'You cannot view this MoM because you were not marked present for the meeting.' });
+      return;
+    }
+
+    if (!isOrganizerOrAdmin && isPresent && (!meeting.agendaItems || meeting.agendaItems.length === 0)) {
+      res.status(403).json({ message: 'The organizer has not drafted the MoM yet. Please wait until they save the initial draft.' });
+      return;
+    }
+
     res.json(withDerivedMomMembers(meeting));
   } catch (error) {
     res.status(500).json({ message: 'Server error while loading MoM', error });

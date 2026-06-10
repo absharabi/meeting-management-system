@@ -49,9 +49,11 @@ interface AgendaItemFormProps {
   disabled?: boolean;
   onAddComment?: (agendaId: string, text: string) => Promise<void>;
   currentUserId?: string;
+  isConfirmed?: boolean;
+  isOrganizerOrAdmin?: boolean;
 }
 
-export default function AgendaItemForm({ item, index, onChange, onRemove, disabled = false, onAddComment, currentUserId }: AgendaItemFormProps) {
+export default function AgendaItemForm({ item, index, onChange, onRemove, disabled = false, onAddComment, currentUserId, isConfirmed = false, isOrganizerOrAdmin = false }: AgendaItemFormProps) {
   const sortableId = item._id || `agenda-${index}`;
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: sortableId });
   const blockSensors = useSensors(useSensor(PointerSensor));
@@ -224,7 +226,9 @@ export default function AgendaItemForm({ item, index, onChange, onRemove, disabl
         
         {item.comments && item.comments.length > 0 && (
           <div className="space-y-3 mb-4">
-            {item.comments.map((comment, i) => (
+            {item.comments
+              .filter(comment => isConfirmed || isOrganizerOrAdmin || comment.user === currentUserId)
+              .map((comment, i) => (
               <div key={i} className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl border border-gray-100 dark:border-gray-800">
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{comment.userName}</span>

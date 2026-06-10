@@ -319,6 +319,15 @@ export default function MomPage() {
   };
 
   const addAgendaComment = async (agendaId: string, text: string) => {
+    if (agendaId.startsWith("local-")) {
+      setNotice({ 
+        message: canEdit 
+          ? "Please click 'Save Draft' first before adding comments to new agenda items." 
+          : "The organizer has not saved this MoM yet. Please wait until they save the draft.", 
+        type: "error" 
+      });
+      return;
+    }
     try {
       const token = localStorage.getItem("accessToken");
       const headers: HeadersInit = { 
@@ -587,6 +596,8 @@ export default function MomPage() {
                   disabled={!canEdit}
                   onAddComment={addAgendaComment}
                   currentUserId={currentUserId}
+                  isConfirmed={isConfirmed}
+                  isOrganizerOrAdmin={isOrganizerOrAdmin}
                 />
               ))}
             </div>

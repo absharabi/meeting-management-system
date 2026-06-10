@@ -28,20 +28,7 @@ export const defaultCoverDetails = (meeting?: MomMeeting | null): MomCoverDetail
 });
 
 export function deriveMembersFromParticipants(meeting: MomMeeting): MemberPresent[] {
-  const mode = meeting.mode === "Online" ? "Online" : meeting.mode === "Hybrid" ? "Hybrid" : "In person";
-
-  return (meeting.participants || [])
-    .map((participant) => {
-      const user = participant.user;
-      if (!user || typeof user === "string") return null;
-
-      return {
-        name: user.name || user.email || "Unnamed participant",
-        designation: user.department || "Invited participant",
-        attendanceMode: mode,
-      };
-    })
-    .filter((member): member is MemberPresent => Boolean(member));
+  return meeting.membersPresent || [];
 }
 
 export function mergeCoverDetails(meeting: MomMeeting, details?: Partial<MomCoverDetails> | null): MomCoverDetails {
