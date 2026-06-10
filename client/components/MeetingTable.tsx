@@ -412,7 +412,7 @@ export default function MeetingTable({
                         const currentParticipant = meeting.participants?.find(
                           (p: any) => p.user?._id === currentUserId || p.user === currentUserId
                         );
-                        if (currentParticipant && currentParticipant.status !== 'Accepted' && (meeting.status === 'Scheduled' || meeting.status === 'Ongoing')) {
+                        if (currentUser.role !== 'SuperAdmin' && currentParticipant && currentParticipant.status !== 'Accepted' && (meeting.status === 'Scheduled' || meeting.status === 'Ongoing')) {
                           return (
                             <div className="flex items-center gap-1 mr-2">
                               <button
@@ -456,8 +456,6 @@ export default function MeetingTable({
                             <ExternalLink size={14} /> View Details
                           </Link>
 
-
-
                           {currentUser && (meeting.organizerId?._id === currentUser.id || meeting.organizerId?._id === currentUser._id || currentUser.role === 'SuperAdmin' || currentUser.role === 'Admin') && (
                             <>
                               <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
@@ -473,14 +471,18 @@ export default function MeetingTable({
                                   Manage Agenda
                                 </Link>
                               )}
-                              <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                              <Link
-                                href={`/meetings/${meeting._id}/mom`}
-                                className="flex items-center gap-2 px-4 py-2 text-sm text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 w-full text-left"
-                                onClick={() => setOpenDropdownId(null)}
-                              >
-                                <FileText size={14} /> Minutes of Meeting
-                              </Link>
+                              {currentUser.role !== 'SuperAdmin' && (
+                                <>
+                                  <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                                  <Link
+                                    href={`/meetings/${meeting._id}/mom`}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 w-full text-left"
+                                    onClick={() => setOpenDropdownId(null)}
+                                  >
+                                    <FileText size={14} /> Minutes of Meeting
+                                  </Link>
+                                </>
+                              )}
                               
                               {(() => {
                                 const meetingDate = new Date(meeting.date);

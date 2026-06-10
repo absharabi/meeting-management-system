@@ -314,7 +314,7 @@ export default function UsersPage() {
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} userRole={currentUserRole} />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <Navbar onMenuClick={() => setIsSidebarOpen(true)} searchQuery={searchQuery} onSearchChange={setSearchQuery} />
+        <Navbar onMenuClick={() => setIsSidebarOpen(true)} />
 
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50/50 p-4 dark:bg-gray-950/50 md:p-8">
           <div className="mx-auto max-w-7xl space-y-6 pb-24">
