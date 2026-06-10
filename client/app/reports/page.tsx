@@ -427,7 +427,7 @@ export default function ReportsPage() {
       if (commentRows.length > 0) {
         finalY = (doc as any).lastAutoTable.finalY + 15;
         if (finalY > 230) { doc.addPage(); finalY = 20; }
-        doc.text('Additional Comments', 14, finalY);
+        doc.text('Additional Comments & Blocks', 14, finalY);
         
         autoTable(doc, {
           startY: finalY + 5,
@@ -436,6 +436,49 @@ export default function ReportsPage() {
           theme: 'striped',
           headStyles: { fillColor: themeSecondary, textColor: 255 },
           columnStyles: { 0: { cellWidth: 40 }, 1: { cellWidth: 40 } }
+        });
+      }
+
+      // 7.5b Agenda Item Comments
+      const agendaCommentRows: any[] = [];
+      (meeting.agendaItems || []).forEach((item: any) => {
+        (item.comments || []).forEach((c: any) => {
+          agendaCommentRows.push([item.subject || `Item ${item.itemNumber}`, c.userName, stripHtml(c.text)]);
+        });
+      });
+
+      if (agendaCommentRows.length > 0) {
+        finalY = (doc as any).lastAutoTable.finalY + 15;
+        if (finalY > 230) { doc.addPage(); finalY = 20; }
+        doc.text('Agenda Item Comments', 14, finalY);
+        
+        autoTable(doc, {
+          startY: finalY + 5,
+          head: [['Subject', 'User', 'Comment']],
+          body: agendaCommentRows,
+          theme: 'striped',
+          headStyles: { fillColor: themeSecondary, textColor: 255 },
+          columnStyles: { 0: { cellWidth: 50 }, 1: { cellWidth: 40 } }
+        });
+      }
+
+      // 7.6 General MoM Remarks
+      if (meeting.momGeneralRemarks && meeting.momGeneralRemarks.length > 0) {
+        finalY = (doc as any).lastAutoTable.finalY + 15;
+        if (finalY > 230) { doc.addPage(); finalY = 20; }
+        doc.text('General MoM Remarks', 14, finalY);
+        
+        const generalRemarkRows = meeting.momGeneralRemarks.map((remark: any) => {
+          return [remark.userName, stripHtml(remark.text)];
+        });
+
+        autoTable(doc, {
+          startY: finalY + 5,
+          head: [['User', 'Remark']],
+          body: generalRemarkRows,
+          theme: 'striped',
+          headStyles: { fillColor: themeSecondary, textColor: 255 },
+          columnStyles: { 0: { cellWidth: 50 } }
         });
       }
 

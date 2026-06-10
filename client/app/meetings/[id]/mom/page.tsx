@@ -64,6 +64,7 @@ export default function MomPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [newGeneralRemark, setNewGeneralRemark] = useState("");
   const sensors = useSensors(useSensor(PointerSensor));
 
   const loadMom = useCallback(async () => {
@@ -140,6 +141,11 @@ export default function MomPage() {
   ));
   const canForceConfirm = currentUser?.role === "SuperAdmin" || currentUser?.role === "Admin";
   const canEdit = isOrganizerOrAdmin && !isConfirmed;
+  const isParticipant = Boolean(meeting?.participants?.some(p => {
+    const pId = typeof p.user === 'string' ? p.user : p.user?._id || p.user?.id;
+    return pId === currentUserId;
+  }));
+  const canAddRemark = !isConfirmed && (isOrganizerOrAdmin || isParticipant);
 
   const previewMeeting = useMemo<MomMeeting | null>(() => {
     if (!meeting) return null;
@@ -195,13 +201,35 @@ export default function MomPage() {
       setMomCoverDetails(mergeCoverDetails(data, data.momCoverDetails));
       setAgendaItems(normalizeAgendaItems(data.agendaItems || []));
       setMomStatus(data.momStatus || status);
-      setNotice({ message: status === "Confirmed" ? "MoM confirmed." : "MoM draft saved.", type: "success" });
+      setNotice({ message: "MoM saved successfully.", type: "success" });
       return true;
     } catch (error) {
-      setNotice({ message: error instanceof Error ? error.message : "Unable to save MoM.", type: "error" });
+      console.error(error);
+      const message = error instanceof Error ? error.message : "Failed to save MoM.";
+      setNotice({ message, type: "error" });
       return false;
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const addGeneralRemark = async () => {
+    if (!newGeneralRemark.trim()) return;
+    try {
+      const res = await fetch(`${API_BASE}/${params.id}/mom/remarks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+        body: JSON.stringify({ text: newGeneralRemark }),
+      });
+      if (res.ok) {
+        const updatedMeeting = await res.json();
+        setMeeting(updatedMeeting);
+        setNewGeneralRemark("");
+      } else {
+        window.alert("Failed to add remark");
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -526,13 +554,14 @@ export default function MomPage() {
 
         <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
           <div className="mb-4">
-            <h2 className="font-bold text-gray-900 dark:text-white">Invited Participants</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Automatically copied from the meeting module. Add or remove invitees from Edit Meeting.</p>
+            <h2 className="font-bold text-gray-900 dark:text-white">Members Present</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Derived from attendance marked in the meeting. Organizer is included by default.</p>
           </div>
           <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
             <table className="w-full text-left text-sm">
               <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-950 dark:text-gray-400">
                 <tr>
+                  <th className="px-4 py-3 w-16">Sl. No.</th>
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3">Department</th>
                   <th className="px-4 py-3">Attendance Mode</th>
@@ -541,6 +570,7 @@ export default function MomPage() {
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {membersPresent.map((member, index) => (
                   <tr key={`${member.name}-${index}`} className="bg-white dark:bg-gray-900">
+                    <td className="px-4 py-3 text-gray-500">{index + 1}</td>
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{member.name || "-"}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{member.designation || "-"}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{member.attendanceMode || "-"}</td>
@@ -548,7 +578,7 @@ export default function MomPage() {
                 ))}
                 {membersPresent.length === 0 && (
                   <tr>
-                    <td colSpan={3} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">No participants invited in the meeting module.</td>
+                    <td colSpan={4} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">No members marked as present yet. Mark attendance first.</td>
                   </tr>
                 )}
               </tbody>
@@ -605,6 +635,44 @@ export default function MomPage() {
         </DndContext>
 
         <SummaryTable items={agendaItems} />
+
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 mt-6">
+          <div className="mb-4">
+            <h2 className="font-bold text-gray-900 dark:text-white">General Remarks</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Add any general remarks or comments regarding the overall meeting.</p>
+          </div>
+          <div className="space-y-4">
+            {meeting?.momGeneralRemarks?.map((remark: any, index: number) => (
+              <div key={index} className="rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-sm text-gray-900 dark:text-white">{remark.userName}</span>
+                  <span className="text-xs text-gray-500">{new Date(remark.createdAt).toLocaleString('en-IN', {
+                    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                  })}</span>
+                </div>
+                <p className="text-sm text-gray-700 dark:text-gray-300">{remark.text}</p>
+              </div>
+            ))}
+            
+            {canAddRemark && (
+              <div className="mt-4 flex gap-2">
+                <input
+                  type="text"
+                  value={newGeneralRemark}
+                  onChange={(e) => setNewGeneralRemark(e.target.value)}
+                  placeholder="Type a general remark..."
+                  className="flex-1 rounded-lg border px-3 py-2 text-sm dark:bg-gray-900 dark:border-gray-700"
+                />
+                <button
+                  onClick={addGeneralRemark}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  Add Remark
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
       </div>
     </main>
   );

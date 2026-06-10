@@ -101,5 +101,6 @@ export interface MomMeeting {
   agendaItems: MomAgendaItem[];
   momCoverDetails?: MomCoverDetails;
   momApprovalStatus?: MomApprovalStatus[];
+  momGeneralRemarks?: { user: string; userName: string; text: string; createdAt: string }[];
   momStatus: MomStatus;
 }

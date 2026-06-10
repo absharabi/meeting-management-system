@@ -64,6 +64,7 @@ const deriveMembersFromParticipants = (meeting: any) => {
       if (!user || typeof user === 'string') return null;
 
       return {
+        _userId: user._id?.toString() || user.id?.toString() || '',
         name: user.name || user.email || 'Unnamed participant',
         designation: user.department || 'Attendee',
         attendanceMode: mode,
@@ -72,9 +73,11 @@ const deriveMembersFromParticipants = (meeting: any) => {
     .filter(Boolean);
 
   if (meeting.organizerId && typeof meeting.organizerId !== 'string') {
+    const orgId = meeting.organizerId._id?.toString() || meeting.organizerId.id?.toString() || '';
     const orgName = meeting.organizerId.name || meeting.organizerId.email || 'Organizer';
-    if (!attendees.some((a: any) => a.name === orgName)) {
+    if (!attendees.some((a: any) => a._userId && orgId && a._userId === orgId)) {
       attendees.unshift({
+        _userId: orgId,
         name: orgName,
         designation: meeting.organizerId.department || 'Organizer',
         attendanceMode: mode,
@@ -82,7 +85,10 @@ const deriveMembersFromParticipants = (meeting: any) => {
     }
   }
 
-  return attendees;
+  return attendees.map((a: any) => {
+    const { _userId, ...rest } = a;
+    return rest;
+  });
 };
 
 const withDerivedMomMembers = (meeting: any) => {
@@ -157,25 +163,24 @@ const getBlockString = (blocks: any[], type: string) => {
   return typeof value === 'string' ? value : '';
 };
 
-const normalizeAgendaItems = (items: any[] = []) => items.map((item, index) => ({
-  ...(() => {
-    const blocks = normalizeBlocks(item);
-    return {
-      sourceAgendaId: item.sourceAgendaId || null,
-      itemNumber: item.itemNumber,
-      sectionTag: item.sectionTag || '',
-      sectionGroup: item.sectionGroup || 'Procedural',
-      subject: item.subject,
-      blocks,
-      backgroundNote: getBlockString(blocks, 'backgroundNote') || item.backgroundNote || '',
-      decision: getBlockString(blocks, 'decision') || item.decision || '',
-      actionRequired: getBlockString(blocks, 'actionRequired') || item.actionRequired || '',
-      responsiblePerson: getBlockString(blocks, 'responsiblePerson') || item.responsiblePerson || '',
-      targetDate: getBlockString(blocks, 'targetDate') || item.targetDate || null,
-      order: typeof item.order === 'number' ? item.order : index,
-    };
-  })(),
-}));
+const normalizeAgendaItems = (items: any[] = []) => items.map((item, index) => {
+  const blocks = normalizeBlocks(item);
+  return {
+    ...item,
+    sourceAgendaId: item.sourceAgendaId || null,
+    itemNumber: item.itemNumber,
+    sectionTag: item.sectionTag || '',
+    sectionGroup: item.sectionGroup || 'Procedural',
+    subject: item.subject,
+    blocks,
+    backgroundNote: getBlockString(blocks, 'backgroundNote') || item.backgroundNote || '',
+    decision: getBlockString(blocks, 'decision') || item.decision || '',
+    actionRequired: getBlockString(blocks, 'actionRequired') || item.actionRequired || '',
+    responsiblePerson: getBlockString(blocks, 'responsiblePerson') || item.responsiblePerson || '',
+    targetDate: getBlockString(blocks, 'targetDate') || item.targetDate || null,
+    order: typeof item.order === 'number' ? item.order : index,
+  };
+});
 
 const comparableAgendaItems = (items: any[] = []) => normalizeAgendaItems(items).map((item) => ({
   sourceAgendaId: item.sourceAgendaId?.toString?.() || item.sourceAgendaId || null,
@@ -234,13 +239,16 @@ export const getMom = async (req: Request, res: Response): Promise<void> => {
 
     const authReq = req as AuthRequest;
     const currentUserId = authReq.user?.id;
+    const orgId = meeting.organizerId?._id?.toString?.() || meeting.organizerId?.id?.toString?.() || meeting.organizerId?.toString?.();
     const isOrganizerOrAdmin = 
       authReq.user?.role === 'Admin' || 
       authReq.user?.role === 'SuperAdmin' || 
-      meeting.organizerId?._id?.toString() === currentUserId ||
-      meeting.organizerId?.id === currentUserId;
+      orgId === currentUserId;
       
-    const isPresent = (meeting.attendance || []).some((user: any) => user?._id?.toString() === currentUserId || user?.id === currentUserId);
+    const isPresent = (meeting.attendance || []).some((user: any) => {
+      const attId = user?._id?.toString?.() || user?.id?.toString?.() || user?.toString?.();
+      return attId === currentUserId;
+    });
 
     if (!isOrganizerOrAdmin && !isPresent) {
       res.status(403).json({ message: 'You cannot view this MoM because you were not marked present for the meeting.' });
@@ -401,7 +409,7 @@ export const patchMom = async (req: Request, res: Response): Promise<void> => {
 
     const populatedMeeting = await populateMeeting(req.params.id as string);
 
-    if (populatedMeeting && req.body.momStatus === MomStatus.Confirmed && target.momStatus !== MomStatus.Confirmed) {
+    if (populatedMeeting && req.body.momStatus === MomStatus.Confirmed) {
       const allReviewers = getMomReviewers(populatedMeeting);
       const subject = `MoM Finalized: ${populatedMeeting.title}`;
       const htmlBody = `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8fafc; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
@@ -522,8 +530,10 @@ export const addMomAgendaComment = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const reviewerIds = new Set(getMomReviewers(target).map((reviewer) => reviewer.userId));
-    if (!reviewerIds.has(currentUserId)) {
+    const allReviewers = getMomReviewers(target);
+    const reviewer = allReviewers.find((r) => r.userId === currentUserId);
+
+    if (!reviewer) {
       res.status(403).json({ message: 'Only meeting members can add comments to this MoM.' });
       return;
     }
@@ -536,7 +546,7 @@ export const addMomAgendaComment = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const userName = (authReq.user as any)?.name || (authReq.user as any)?.email || 'Participant';
+    const userName = reviewer.name || 'Participant';
 
     const updatePath = `agendaItems.${agendaIndex}.comments`;
     
@@ -554,5 +564,58 @@ export const addMomAgendaComment = async (req: Request, res: Response): Promise<
     res.json(withDerivedMomMembers(await populateMeeting(req.params.id as string)));
   } catch (error) {
     res.status(500).json({ message: 'Server error while adding MoM agenda comment', error });
+  }
+};
+
+export const addMomGeneralRemark = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as AuthRequest;
+    const currentUserId = authReq.user?.id;
+    if (!currentUserId) {
+      res.status(401).json({ message: 'Log in before adding a remark.' });
+      return;
+    }
+
+    const { text } = req.body;
+    if (!text || typeof text !== 'string' || text.trim() === '') {
+      res.status(400).json({ message: 'Remark text is required.' });
+      return;
+    }
+
+    const target = await populateMeeting(req.params.id as string);
+    if (!target) {
+      res.status(404).json({ message: 'Meeting not found' });
+      return;
+    }
+
+    if (target.momStatus === MomStatus.Confirmed) {
+      res.status(423).json({ message: 'This MoM is confirmed and locked. No new remarks can be added.' });
+      return;
+    }
+
+    const allReviewers = getMomReviewers(target);
+    const reviewer = allReviewers.find((r) => r.userId === currentUserId);
+
+    if (!reviewer) {
+      res.status(403).json({ message: 'Only meeting members can add remarks to this MoM.' });
+      return;
+    }
+
+    const userName = reviewer.name || 'Participant';
+
+    await Meeting.findByIdAndUpdate(req.params.id as string, {
+      $push: { 
+        momGeneralRemarks: { 
+          user: currentUserId, 
+          userName: userName,
+          text: text.trim(), 
+          createdAt: new Date() 
+        } 
+      },
+    });
+
+    res.json(withDerivedMomMembers(await populateMeeting(req.params.id as string)));
+  } catch (error) {
+    res.status(500).json({ message: 'Server error while adding MoM remark', error });
   }
 };

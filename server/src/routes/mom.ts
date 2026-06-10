@@ -1,5 +1,5 @@
 import express from 'express';
-import { approveMom, exportMom, getMom, patchMom, saveMom, addMomAgendaComment } from '../controllers/momController';
+import { approveMom, exportMom, getMom, patchMom, saveMom, addMomAgendaComment, addMomGeneralRemark } from '../controllers/momController';
 import { protect } from '../middleware/auth.middleware';
 
 const router = express.Router();
@@ -12,6 +12,7 @@ router.post('/:id/mom', saveMom);
 router.patch('/:id/mom', patchMom);
 router.post('/:id/mom/approve', approveMom);
 router.post('/:id/mom/agendas/:agendaId/comments', addMomAgendaComment);
+router.post('/:id/mom/remarks', addMomGeneralRemark);
 router.get('/:id/mom/export', exportMom);
 
 export default router;

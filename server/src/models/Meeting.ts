@@ -94,6 +94,12 @@ export interface IMeeting extends Document {
     user: Types.ObjectId;
     approvedAt: Date;
   }[];
+  momGeneralRemarks: {
+    user: Types.ObjectId;
+    userName: string;
+    text: string;
+    createdAt: Date;
+  }[];
   momStatus: MomStatus;
   aiTranscript?: string;
   aiSummary?: string;
@@ -272,6 +278,15 @@ const MeetingSchema = new Schema<IMeeting>(
     },
     momApprovals: {
       type: [MomApprovalSchema],
+      default: []
+    },
+    momGeneralRemarks: {
+      type: [{
+        user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+        userName: { type: String, required: true },
+        text: { type: String, required: true },
+        createdAt: { type: Date, default: Date.now }
+      }],
       default: []
     },
     momStatus: {

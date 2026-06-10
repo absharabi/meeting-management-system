@@ -102,30 +102,7 @@ export default function MeetingTable({
     }
   };
 
-  const handleRSVP = async (id: string, status: string) => {
-    try {
-      const token = localStorage.getItem('accessToken');
-      const rsvpResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${id}/rsvp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ status })
-      });
-      if (rsvpResponse.ok) {
-        setOpenDropdownId(null);
-        fetchMeetings(searchQuery); // Refresh to show updated status
-        toast.success(`RSVP updated to ${status}`);
-      } else {
-        const err = await rsvpResponse.json();
-        toast.error(err.message || 'Failed to update RSVP');
-      }
-    } catch (error) {
-      console.error('Failed to RSVP', error);
-      toast.error('An error occurred while updating RSVP');
-    }
-  };
+
 
   const filteredMeetings = meetings.filter(meeting => {
     const matchesStatus = statusFilter === 'All' || meeting.status === statusFilter;
@@ -371,7 +348,7 @@ export default function MeetingTable({
                               const user = p.user;
                               if (!user) return null;
                               return (
-                                <div key={`${user._id}-${i}`} title={`${user.name} (${p.status})`} className={`w-8 h-8 rounded-full border-2 border-white dark:border-gray-800 flex items-center justify-center text-xs font-medium z-10 ${p.status === 'Accepted' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : p.status === 'Declined' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'}`}>
+                                <div key={`${user._id}-${i}`} title={user.name} className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800 flex items-center justify-center text-xs font-medium z-10 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
                                   {user.name?.charAt(0) || '?'}
                                 </div>
                               );
@@ -407,35 +384,7 @@ export default function MeetingTable({
                   </td>
                   <td className="px-6 py-4 text-right relative">
                     <div className="flex items-center justify-end gap-2">
-                      {currentUser && (() => {
-                        const currentUserId = currentUser.id || currentUser._id;
-                        const currentParticipant = meeting.participants?.find(
-                          (p: any) => p.user?._id === currentUserId || p.user === currentUserId
-                        );
-                        if (currentUser.role !== 'SuperAdmin' && currentParticipant && currentParticipant.status !== 'Accepted' && (meeting.status === 'Scheduled' || meeting.status === 'Ongoing')) {
-                          return (
-                            <div className="flex items-center gap-1 mr-2">
-                              <button
-                                onClick={() => handleRSVP(meeting._id, 'Accepted')}
-                                className="flex flex-col items-center justify-center p-1.5 px-3 text-xs font-medium text-white bg-gray-800 rounded-lg hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
-                                title="Accept"
-                              >
-                                <Check size={16} className="mb-0.5" />
-                                Accept
-                              </button>
-                              <button
-                                onClick={() => handleRSVP(meeting._id, 'Declined')}
-                                className="flex flex-col items-center justify-center p-1.5 px-3 text-xs font-medium text-white bg-gray-800 rounded-lg hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
-                                title="Decline"
-                              >
-                                <X size={16} className="mb-0.5" />
-                                Decline
-                              </button>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
+
                       <button
                         onClick={() => setOpenDropdownId(openDropdownId === meeting._id ? null : meeting._id)}
                         className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"

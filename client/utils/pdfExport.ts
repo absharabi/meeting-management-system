@@ -403,6 +403,10 @@ export async function exportMomPdf(meeting: MomMeeting) {
         if (resolutionBlock) {
           rows.push(["Resolution", stripHtml(String(resolutionBlock.value || ""))]);
         }
+        if (item.comments && item.comments.length > 0) {
+          const commentsStr = item.comments.map(c => `[${c.userName}]: ${c.text}`).join('\n');
+          rows.push(["Comments", stripHtml(commentsStr)]);
+        }
 
         autoTable(doc, {
           startY: y,
@@ -427,6 +431,30 @@ export async function exportMomPdf(meeting: MomMeeting) {
     doc.setFontSize(10);
     doc.text("No agenda items recorded.", margin, y);
     y += 20;
+  }
+
+  if (meeting.momGeneralRemarks && meeting.momGeneralRemarks.length > 0) {
+    y = ensureSpace(doc, y, 60, meeting);
+    doc.setFont("times", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(20, 35, 60);
+    doc.text("General Remarks", margin, y);
+    y += 15;
+    
+    doc.setFont("times", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(25, 35, 50);
+    
+    meeting.momGeneralRemarks.forEach(remark => {
+      y = ensureSpace(doc, y, 30, meeting);
+      doc.setFont("times", "bold");
+      doc.text(`${remark.userName}:`, margin, y);
+      y += 12;
+      doc.setFont("times", "normal");
+      const splitText = doc.splitTextToSize(remark.text || "", pageWidth - margin * 2);
+      doc.text(splitText, margin, y);
+      y += splitText.length * 12 + 8;
+    });
   }
 
   y = ensureSpace(doc, y, 120, meeting);
@@ -552,6 +580,12 @@ export function exportMomWord(meeting: MomMeeting) {
               <td>${String(resolutionBlock.value || "").replace(/\n/g, "<br>")}</td>
             </tr>
             ` : ""}
+            ${item.comments && item.comments.length > 0 ? `
+              <tr>
+                <td class="bog-left">Comments</td>
+                <td>${escapeHtml(item.comments.map(c => `[${c.userName}]: ${c.text}`).join('\n')).replace(/\n/g, "<br>")}</td>
+              </tr>
+            ` : ""}
           </table>
         `;
       }).join("")}
@@ -598,6 +632,12 @@ export function exportMomWord(meeting: MomMeeting) {
           `).join("")}
         </table>
         ${agendaHtml || "<p>No agenda items recorded.</p>"}
+        ${meeting.momGeneralRemarks && meeting.momGeneralRemarks.length > 0 ? `
+          <h2>General Remarks</h2>
+          ${meeting.momGeneralRemarks.map(remark => `
+            <p><strong>${escapeHtml(remark.userName)}:</strong> ${escapeHtml(remark.text)}</p>
+          `).join('')}
+        ` : ""}
         <p>The meeting ended with thanks to the Chair.</p>
         <h2>Approved By</h2>
         ${approvedMembers.length ? approvedMembers.map((member) => `<p>${escapeHtml(`${member.name} (${member.department || "Member"})`)}</p>`).join("") : "<p>No approvals recorded.</p>"}
