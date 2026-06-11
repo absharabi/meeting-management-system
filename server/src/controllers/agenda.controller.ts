@@ -90,6 +90,7 @@ export const getAgendasByMeeting = async (req: Request, res: Response): Promise<
   try {
     const agendas = await Agenda.find({ meetingId: req.params.meetingId })
       .populate('proposedBy', 'name email')
+      .populate('documents.uploadedBy', 'name email')
       .sort({ sequence: 1, createdAt: 1 });
       
     res.json(agendas);

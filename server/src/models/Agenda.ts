@@ -5,6 +5,13 @@ export enum AgendaStatus {
   Approved = 'Approved',
 }
 
+export interface IAgendaDocument {
+  fileName: string;
+  fileUrl: string;
+  uploadedAt: Date;
+  uploadedBy: Types.ObjectId;
+}
+
 export interface IAgenda extends Document {
   meetingId: Types.ObjectId;
   title: string;
@@ -14,6 +21,7 @@ export interface IAgenda extends Document {
   status: AgendaStatus;
   isEmergency: boolean;
   sequence: number;
+  documents: IAgendaDocument[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -56,6 +64,14 @@ const AgendaSchema = new Schema<IAgenda>(
       type: Number,
       default: 0,
     },
+    documents: [
+      {
+        fileName: { type: String, required: true },
+        fileUrl: { type: String, required: true },
+        uploadedAt: { type: Date, default: Date.now },
+        uploadedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+      },
+    ],
   },
   {
     timestamps: true,

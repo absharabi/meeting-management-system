@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Calendar, Clock, MapPin, Users, FileText, CheckCircle, Clock as ClockIcon, Download, Plus, Trash2, GripVertical, BellOff, Bell, CheckSquare, Copy, Edit } from 'lucide-react';
+import { Calendar, Clock, MapPin, Users, FileText, CheckCircle, Clock as ClockIcon, Download, Plus, Trash2, GripVertical, BellOff, Bell, CheckSquare, Copy, Edit, Paperclip, X } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -30,6 +30,8 @@ export default function MeetingDetailsPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   
   const [newAgenda, setNewAgenda] = useState({ title: '', description: '', timeAllocated: 15, isEmergency: false });
+  const [pendingDocs, setPendingDocs] = useState<File[]>([]);
+  const pendingDocsInputRef = useRef<HTMLInputElement>(null);
   const [userRating, setUserRating] = useState<number>(0);
   const [hoverRating, setHoverRating] = useState<number>(0);
 
@@ -96,7 +98,16 @@ export default function MeetingDetailsPage() {
         body: JSON.stringify(payload)
       });
       if (res.ok) {
+        const createdAgenda = await res.json();
+        // Upload any pending documents
+        if (pendingDocs.length > 0) {
+          await Promise.all(
+            pendingDocs.map((file) => handleUploadAgendaDocument(createdAgenda._id, file))
+          );
+        }
         setNewAgenda({ title: '', description: '', timeAllocated: 15, isEmergency: false });
+        setPendingDocs([]);
+        if (pendingDocsInputRef.current) pendingDocsInputRef.current.value = '';
         fetchMeetingAndAgendas();
       }
     } catch (error) {
@@ -190,6 +201,46 @@ export default function MeetingDetailsPage() {
       fetchMeetingAndAgendas();
     } catch (error) {
       console.error('Failed to delete agenda', error);
+    }
+  };
+
+  const handleUploadAgendaDocument = async (agendaId: string, file: File) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const formData = new FormData();
+      formData.append('document', file);
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/agendas/${agendaId}/upload-document`,
+        { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData }
+      );
+      if (res.ok) {
+        fetchMeetingAndAgendas();
+      } else {
+        const data = await res.json();
+        alert(data.message || 'Failed to upload document');
+      }
+    } catch (error) {
+      console.error('Failed to upload agenda document', error);
+      alert('Error uploading document');
+    }
+  };
+
+  const handleDeleteAgendaDocument = async (agendaId: string, docIndex: number) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/agendas/${agendaId}/documents/${docIndex}`,
+        { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.ok) {
+        fetchMeetingAndAgendas();
+      } else {
+        const data = await res.json();
+        alert(data.message || 'Failed to delete document');
+      }
+    } catch (error) {
+      console.error('Failed to delete agenda document', error);
+      alert('Error deleting document');
     }
   };
 
@@ -454,8 +505,34 @@ export default function MeetingDetailsPage() {
           <div className="flex items-start gap-3">
             <div className="p-2 bg-gray-50 dark:bg-gray-800 rounded-lg text-gray-500"><MapPin size={20} /></div>
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Venue</p>
-              <p className="font-medium text-gray-900 dark:text-white">{meeting.venue || meeting.mode}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {meeting.mode === 'Online' ? 'Meeting Link' : meeting.mode === 'Hybrid' ? 'Venue / Link' : 'Venue'}
+              </p>
+              <p className="font-medium text-gray-900 dark:text-white">
+                {meeting.mode === 'Online' ? (
+                  meeting.link ? (
+                    <a href={meeting.link.startsWith('http') ? meeting.link : `https://${meeting.link}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline break-all">
+                      {meeting.link}
+                    </a>
+                  ) : (
+                    'Online (No link provided)'
+                  )
+                ) : meeting.mode === 'Hybrid' ? (
+                  <>
+                    {meeting.venue || 'No venue'}
+                    {meeting.link && (
+                      <span className="block text-xs mt-0.5">
+                        Link:{' '}
+                        <a href={meeting.link.startsWith('http') ? meeting.link : `https://${meeting.link}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline break-all">
+                          {meeting.link}
+                        </a>
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  meeting.venue || 'Offline'
+                )}
+              </p>
             </div>
           </div>
           <div className="flex items-start gap-3">
@@ -504,8 +581,12 @@ export default function MeetingDetailsPage() {
                       agenda={agenda}
                       index={index}
                       isOrganizerOrAdmin={isOrganizerOrAdmin}
+                      currentUserId={currentUserId || ''}
+                      meetingId={meetingId}
                       onApprove={handleApprove}
                       onDelete={handleDeleteAgenda}
+                      onUploadDocument={handleUploadAgendaDocument}
+                      onDeleteDocument={handleDeleteAgendaDocument}
                     />
                   ))}
                 </SortableContext>
@@ -544,6 +625,48 @@ export default function MeetingDetailsPage() {
                     </label>
                   </div>
                 </div>
+
+                {/* Supporting Documents */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
+                    <Paperclip size={12} /> Supporting Documents <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/40 dark:hover:bg-blue-900/10 transition-colors">
+                    <Paperclip size={14} className="text-gray-400" />
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {pendingDocs.length === 0 ? 'Attach files… (PDF, Word, Excel, Images)' : `${pendingDocs.length} file${pendingDocs.length > 1 ? 's' : ''} selected`}
+                    </span>
+                    <input
+                      ref={pendingDocsInputRef}
+                      type="file"
+                      multiple
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                      className="hidden"
+                      onChange={e => {
+                        const files = Array.from(e.target.files || []);
+                        setPendingDocs(prev => [...prev, ...files]);
+                      }}
+                    />
+                  </label>
+                  {pendingDocs.length > 0 && (
+                    <ul className="mt-2 space-y-1">
+                      {pendingDocs.map((f, i) => (
+                        <li key={i} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-md">
+                          <Paperclip size={11} className="flex-shrink-0 text-gray-400" />
+                          <span className="truncate flex-1">{f.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setPendingDocs(prev => prev.filter((_, idx) => idx !== i))}
+                            className="flex-shrink-0 text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            <X size={12} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
                 <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
                   Add to Agenda
                 </button>
