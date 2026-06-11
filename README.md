@@ -12,6 +12,7 @@ A comprehensive, full-stack enterprise meeting management solution. This applica
 - **Professional Exports:** Generate branded, highly-structured PDF and Excel exports for agendas and MoMs.
 - **Real-Time Updates:** WebSockets power instant in-app notifications and real-time collaboration.
 - **Automated Emails:** Automated Gmail-integrated notifications for meeting invites, cancellations, and nominee approvals.
+- **AI Integration:** Powered by local Ollama AI models to assist with meeting summaries, drafting action items, and generating intelligent insights without compromising data privacy.
 
 ## Tech Stack
 
@@ -34,6 +35,7 @@ A comprehensive, full-stack enterprise meeting management solution. This applica
 - **File Uploads:** Multer
 - **Email Delivery:** Nodemailer
 - **Task Scheduling:** Node-cron
+- **AI Integration:** Local LLMs via [Ollama](https://ollama.com/)
 
 ---
 
