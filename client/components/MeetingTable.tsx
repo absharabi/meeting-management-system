@@ -365,7 +365,22 @@ export default function MeetingTable({
               {displayedMeetings.map((meeting) => (
                 <tr key={meeting._id} className="bg-white dark:bg-gray-800 border-b border-gray-50 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                   <td className="px-6 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap">
-                    {meeting.title}
+                    <div className="flex items-center gap-2">
+                      {meeting.title}
+                      {(() => {
+                        if (!currentUser) return null;
+                        const currentUserId = currentUser.id || currentUser._id;
+                        const isNomineeForMeeting = meeting.participants?.some((p: any) => (p.nominee === currentUserId || p.nominee?._id === currentUserId) && p.nomineeStatus === 'Approved');
+                        if (isNomineeForMeeting) {
+                          return (
+                            <span className="px-2 py-0.5 text-[10px] font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 rounded-full border border-purple-200 dark:border-purple-800" title="You are attending this meeting on behalf of someone else.">
+                              Nominated
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {meeting.date ? format(new Date(meeting.date), 'MMM dd, yyyy') : 'No Date'} at {meeting.startTime || 'TBD'}

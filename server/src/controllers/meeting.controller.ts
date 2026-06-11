@@ -725,8 +725,8 @@ export const rsvpMeeting = async (req: Request, res: Response): Promise<void> =>
 export const approveNominee = async (req: Request, res: Response): Promise<void> => {
   try {
     const requestingUser = (req as any).user;
-    const meetingId = req.params.id;
-    const participantId = req.params.participantId;
+    const meetingId = req.params.id as string;
+    const participantId = req.params.participantId as string;
 
     const meeting = await Meeting.findById(meetingId).populate('organizerId', 'name email');
     if (!meeting) {
@@ -773,6 +773,26 @@ export const approveNominee = async (req: Request, res: Response): Promise<void>
       `;
       sendEmail(ogParticipantDoc.email, `Nomination Approved: ${meeting.title}`, emailHtml);
       sendEmail(nomineeDoc.email, `Meeting Invitation (Nominee): ${meeting.title}`, emailHtml);
+
+      // Create in-app notifications
+      const nomineeNotif = await Notification.create({
+        recipient: nomineeId,
+        type: 'meeting_invitation',
+        message: `You have been approved to represent ${ogParticipantDoc.name} in the meeting: ${meeting.title}`,
+        relatedMeeting: meetingId,
+        actionUrl: `/meetings/${meetingId}`
+      });
+
+      const participantNotif = await Notification.create({
+        recipient: participantId,
+        type: 'nominee_approved',
+        message: `Your nomination of ${nomineeDoc.name} for the meeting ${meeting.title} has been approved.`,
+        relatedMeeting: meetingId,
+        actionUrl: `/meetings/${meetingId}`
+      });
+
+      emitNotification(nomineeId.toString(), nomineeNotif);
+      emitNotification(participantId.toString(), participantNotif);
     }
 
     res.json({ message: 'Nominee approved successfully', meeting });
@@ -784,8 +804,8 @@ export const approveNominee = async (req: Request, res: Response): Promise<void>
 export const rejectNominee = async (req: Request, res: Response): Promise<void> => {
   try {
     const requestingUser = (req as any).user;
-    const meetingId = req.params.id;
-    const participantId = req.params.participantId;
+    const meetingId = req.params.id as string;
+    const participantId = req.params.participantId as string;
 
     const meeting = await Meeting.findById(meetingId).populate('organizerId', 'name email');
     if (!meeting) {

@@ -49,7 +49,13 @@ export interface IMeeting extends Document {
   venue?:       string;
   link?:        string;
   organizerId:  Types.ObjectId;
-  participants: { user: Types.ObjectId; status: string }[];
+  participants: { 
+    user: Types.ObjectId; 
+    status: string;
+    reason?: string;
+    nominee?: Types.ObjectId;
+    nomineeStatus?: string;
+  }[];
   attendance:   Types.ObjectId[];
   status:       MeetingStatus;
   groupId?:     string;

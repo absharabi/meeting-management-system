@@ -304,7 +304,7 @@ router.delete(
   async (req: Request, res: Response) => {
     try {
       const { meetingId, agendaId, docIndex } = req.params;
-      const idx = parseInt(docIndex, 10);
+      const idx = parseInt(docIndex as string, 10);
 
       const meeting = await Meeting.findById(meetingId);
       if (!meeting) return res.status(404).json({ message: 'Meeting not found' });

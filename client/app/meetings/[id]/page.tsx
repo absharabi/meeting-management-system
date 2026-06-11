@@ -446,7 +446,14 @@ export default function MeetingDetailsPage() {
                 'bg-amber-100 text-amber-700'
               }`}>{meeting.status}</span>
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{meeting.title}</h1>
+            <div className="flex items-center flex-wrap gap-3 mt-1">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{meeting.title}</h1>
+              {isNominee && (
+                <span className="px-2.5 py-1 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 rounded-md text-xs font-bold border border-purple-200 dark:border-purple-800 flex items-center gap-1.5 shadow-sm" title="You are attending this meeting on behalf of someone else.">
+                  <Users size={14} /> Nominated Meeting
+                </span>
+              )}
+            </div>
             
             {/* Compressed Meeting ID */}
             <div className="flex items-center gap-2 mt-2">
