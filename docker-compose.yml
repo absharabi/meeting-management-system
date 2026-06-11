@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: mms_mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mms_mongo_data:/data/db
+    restart: always
+
+  backend:
+    build: ./server
+    container_name: mms_backend
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - MONGODB_URI=mongodb://mongodb:27017/meeting-system
+      - JWT_SECRET=change_this_to_a_secure_jwt_secret_for_production
+      - FRONTEND_URL=http://localhost:3000
+    depends_on:
+      - mongodb
+    restart: always
+
+  frontend:
+    build: ./client
+    container_name: mms_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:5000
+    depends_on:
+      - backend
+    restart: always
+
+volumes:
+  mms_mongo_data:
