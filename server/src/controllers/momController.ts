@@ -15,13 +15,27 @@ const getUserId = (user: any) => user?._id?.toString?.() || user?.id?.toString?.
 const getMomReviewers = (meeting: any) => {
   const reviewers = new Map<string, any>();
   const addUser = (user: any) => {
+    let targetUser = user;
     const userId = getUserId(user);
-    if (!userId || reviewers.has(userId)) return;
-    reviewers.set(userId, {
-      userId,
-      name: user?.name || user?.email || 'Unnamed participant',
-      email: user?.email || '',
-      department: user?.department || '',
+
+    // If the attended user is an approved nominee, substitute them with the original participant
+    const participantRecord = meeting.participants?.find((p: any) => {
+      const nomineeId = p.nominee?._id?.toString() || p.nominee?.toString();
+      return nomineeId === userId && p.nomineeStatus === 'Approved';
+    });
+
+    if (participantRecord && participantRecord.user) {
+      targetUser = participantRecord.user;
+    }
+
+    const finalUserId = getUserId(targetUser);
+    if (!finalUserId || reviewers.has(finalUserId)) return;
+
+    reviewers.set(finalUserId, {
+      userId: finalUserId,
+      name: targetUser?.name || targetUser?.email || 'Unnamed participant',
+      email: targetUser?.email || '',
+      department: targetUser?.department || '',
     });
   };
 
@@ -63,11 +77,29 @@ const deriveMembersFromParticipants = (meeting: any) => {
     .map((user: any) => {
       if (!user || typeof user === 'string') return null;
 
+      const userId = user._id?.toString() || user.id?.toString() || '';
+      
+      const participantRecord = meeting.participants?.find((p: any) => {
+        const nomineeId = p.nominee?._id?.toString() || p.nominee?.toString();
+        return nomineeId === userId && p.nomineeStatus === 'Approved';
+      });
+
+      let finalUser = user;
+      let finalUserId = userId;
+      let attendanceMode = mode;
+
+      if (participantRecord && participantRecord.user) {
+        // Swap out the nominee for the OG participant
+        finalUser = participantRecord.user;
+        finalUserId = getUserId(participantRecord.user);
+        attendanceMode = 'Nominated';
+      }
+
       return {
-        _userId: user._id?.toString() || user.id?.toString() || '',
-        name: user.name || user.email || 'Unnamed participant',
-        designation: user.department || 'Attendee',
-        attendanceMode: mode,
+        _userId: finalUserId,
+        name: finalUser.name || finalUser.email || 'Unnamed participant',
+        designation: finalUser.department || 'Attendee',
+        attendanceMode,
       };
     })
     .filter(Boolean);
@@ -246,17 +278,17 @@ export const getMom = async (req: Request, res: Response): Promise<void> => {
       authReq.user?.role === 'SuperAdmin' || 
       orgId === currentUserId;
       
-    const isPresent = (meeting.attendance || []).some((user: any) => {
-      const attId = user?._id?.toString?.() || user?.id?.toString?.() || user?.toString?.();
-      return attId === currentUserId;
-    });
+    const reviewers = getMomReviewers(meeting);
+    const isReviewer = reviewers.some((r) => r.userId === currentUserId);
 
-    if (!isOrganizerOrAdmin && !isPresent) {
+    if (!isOrganizerOrAdmin && !isReviewer) {
       res.status(403).json({ message: 'You cannot view this MoM because you were not marked present for the meeting.' });
       return;
     }
 
-    if (!isOrganizerOrAdmin && isPresent && (!meeting.agendaItems || meeting.agendaItems.length === 0)) {
+    // We use membersPresent to determine if the MoM has been saved at least once.
+    // If it's empty, the organizer hasn't clicked "Save Draft" yet.
+    if (!isOrganizerOrAdmin && isReviewer && (!meeting.membersPresent || meeting.membersPresent.length === 0)) {
       res.status(403).json({ message: 'The organizer has not drafted the MoM yet. Please wait until they save the initial draft.' });
       return;
     }

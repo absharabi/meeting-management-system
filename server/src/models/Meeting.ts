@@ -17,6 +17,7 @@ export enum MeetingStatus {
   Ongoing   = 'Ongoing',
   Completed = 'Completed',
   Cancelled = 'Cancelled',
+  Postponed = 'Postponed',
 }
 
 export enum MomStatus {
@@ -121,7 +122,7 @@ const MembersPresentSchema = new Schema(
   {
     name: { type: String, trim: true, default: '' },
     designation: { type: String, trim: true, default: '' },
-    attendanceMode: { type: String, enum: ['In person', 'Online', 'Hybrid'], default: 'In person' },
+    attendanceMode: { type: String, enum: ['In person', 'Online', 'Hybrid', 'Nominated'], default: 'In person' },
   },
   { _id: false }
 );
@@ -241,7 +242,10 @@ const MeetingSchema = new Schema<IMeeting>(
     },
     participants: [{ 
       user: { type: Schema.Types.ObjectId, ref: 'User' },
-      status: { type: String, enum: ['Pending', 'Accepted', 'Declined'], default: 'Pending' }
+      status: { type: String, enum: ['Pending', 'Accepted', 'Declined'], default: 'Pending' },
+      reason: { type: String, default: '' },
+      nominee: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+      nomineeStatus: { type: String, enum: ['None', 'Pending', 'Approved', 'Rejected'], default: 'None' }
     }],
     attendance: [{ 
       type: Schema.Types.ObjectId, 

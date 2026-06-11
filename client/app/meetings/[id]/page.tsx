@@ -11,6 +11,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSo
 import dynamic from 'next/dynamic';
 import AgendaItem from '../../../components/AgendaItem';
 import LiveNotesPad from '../../../components/LiveNotesPad';
+import toast from 'react-hot-toast';
 import 'react-quill-new/dist/quill.snow.css';
 
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
@@ -28,12 +29,16 @@ export default function MeetingDetailsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [newActionItem, setNewActionItem] = useState({ title: '', assigneeId: '', dueDate: '' });
   const [currentUser, setCurrentUser] = useState<any>(null);
-  
   const [newAgenda, setNewAgenda] = useState({ title: '', description: '', timeAllocated: 15, isEmergency: false });
   const [pendingDocs, setPendingDocs] = useState<File[]>([]);
   const pendingDocsInputRef = useRef<HTMLInputElement>(null);
   const [userRating, setUserRating] = useState<number>(0);
   const [hoverRating, setHoverRating] = useState<number>(0);
+  const [isDeclineModalOpen, setIsDeclineModalOpen] = useState(false);
+  const [isParticipantListModalOpen, setIsParticipantListModalOpen] = useState(false);
+  const [declineReason, setDeclineReason] = useState('');
+  const [selectedNominee, setSelectedNominee] = useState('');
+  const [allUsers, setAllUsers] = useState<any[]>([]);
 
   const fetchMeetingAndAgendas = async () => {
     try {
@@ -73,6 +78,14 @@ export default function MeetingDetailsPage() {
         const actionData = await actionRes.json();
         setActionItems(actionData);
       }
+
+      // Fetch all users for nominee dropdown
+      const usersRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (usersRes.ok) {
+        setAllUsers(await usersRes.json());
+      }
     } catch (error) {
       console.error('Failed to fetch data', error);
     } finally {
@@ -83,6 +96,49 @@ export default function MeetingDetailsPage() {
   useEffect(() => {
     fetchMeetingAndAgendas();
   }, [meetingId]);
+
+  const handleRsvp = async (status: 'Accepted' | 'Declined', reason = '', nomineeId = '') => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/rsvp`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ status, reason, nomineeId })
+      });
+      if (res.ok) {
+        setIsDeclineModalOpen(false);
+        setDeclineReason('');
+        setSelectedNominee('');
+        fetchMeetingAndAgendas();
+      } else {
+        alert('Failed to update RSVP');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleApproveNominee = async (participantId: string) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/nominees/${participantId}/approve`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) fetchMeetingAndAgendas();
+    } catch (e) { console.error(e); }
+  };
+
+  const handleRejectNominee = async (participantId: string) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/nominees/${participantId}/reject`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) fetchMeetingAndAgendas();
+    } catch (e) { console.error(e); }
+  };
 
   const handleAddAgenda = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -343,6 +399,9 @@ export default function MeetingDetailsPage() {
     meeting.organizerId?._id === currentUserId
   );
 
+  const isNominee = meeting.participants?.some((p: any) => p.nominee === currentUserId && p.nomineeStatus === 'Approved');
+  const actualViewMode = isNominee ? 'details' : viewMode;
+
   const isAdminOrSuperAdmin = currentUser && (
     currentUser.role === 'SuperAdmin' || 
     currentUser.role === 'Admin'
@@ -379,7 +438,13 @@ export default function MeetingDetailsPage() {
           <div>
             <div className="flex items-center gap-3 mb-2">
               <span className="px-3 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded-full text-xs font-semibold">{meeting.meetingType}</span>
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${meeting.status === 'Scheduled' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>{meeting.status}</span>
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                meeting.status === 'Completed' ? 'bg-green-100 text-green-700' :
+                meeting.status === 'Ongoing' ? 'bg-blue-100 text-blue-700' :
+                meeting.status === 'Cancelled' ? 'bg-red-100 text-red-700' :
+                meeting.status === 'Postponed' ? 'bg-purple-100 text-purple-700' :
+                'bg-amber-100 text-amber-700'
+              }`}>{meeting.status}</span>
             </div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{meeting.title}</h1>
             
@@ -428,10 +493,15 @@ export default function MeetingDetailsPage() {
                         headers: { 'Authorization': `Bearer ${token}` }
                       });
                       if (res.ok) {
+                        toast.success('Meeting cancelled successfully');
                         fetchMeetingAndAgendas();
+                      } else {
+                        const errData = await res.json();
+                        toast.error(errData.message || 'Failed to cancel meeting');
                       }
                     } catch (e) {
                       console.error('Failed to cancel meeting', e);
+                      toast.error('Network error');
                     }
                   }}
                   className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 rounded-lg text-sm font-medium transition-colors"
@@ -440,17 +510,50 @@ export default function MeetingDetailsPage() {
                 </button>
                 <button 
                   onClick={async () => {
+                    if(!confirm('Mark this meeting as postponed?')) return;
+                    try {
+                      const token = localStorage.getItem('accessToken');
+                      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({ status: 'Postponed' })
+                      });
+                      if (res.ok) {
+                        toast.success('Meeting postponed successfully');
+                        fetchMeetingAndAgendas();
+                      } else {
+                        const errData = await res.json();
+                        toast.error(errData.message || 'Failed to postpone meeting');
+                      }
+                    } catch (e) {
+                      console.error('Failed to postpone meeting', e);
+                      toast.error('Network error');
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-600 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/40 rounded-lg text-sm font-medium transition-colors"
+                >
+                  <ClockIcon size={16} /> Postpone Meeting
+                </button>
+                <button 
+                  onClick={async () => {
                     if(!confirm('Mark this meeting as completed?')) return;
                     try {
                       const token = localStorage.getItem('accessToken');
-                      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}`, {
+                      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                         body: JSON.stringify({ status: 'Completed' })
                       });
-                      fetchMeetingAndAgendas();
+                      if (res.ok) {
+                        toast.success('Meeting marked as completed');
+                        fetchMeetingAndAgendas();
+                      } else {
+                        const errData = await res.json();
+                        toast.error(errData.message || 'Failed to complete meeting');
+                      }
                     } catch (e) {
                       console.error('Failed to complete meeting', e);
+                      toast.error('Network error');
                     }
                   }}
                   className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/40 rounded-lg text-sm font-medium transition-colors"
@@ -535,18 +638,243 @@ export default function MeetingDetailsPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-gray-50 dark:bg-gray-800 rounded-lg text-gray-500"><Users size={20} /></div>
+          <div 
+            onClick={() => setIsParticipantListModalOpen(true)}
+            className="flex items-start gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 p-2 -m-2 rounded-lg transition-colors group"
+          >
+            <div className="p-2 bg-gray-50 dark:bg-gray-800 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 rounded-lg text-gray-500 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"><Users size={20} /></div>
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Participants</p>
-              <p className="font-medium text-gray-900 dark:text-white">{meeting.participants?.length || 0} Invited</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Participants</p>
+              <p className="font-medium text-gray-900 dark:text-white underline decoration-gray-300 dark:decoration-gray-700 decoration-dotted underline-offset-4 group-hover:decoration-blue-400 transition-colors">{meeting.participants?.length || 0} Invited</p>
             </div>
           </div>
         </div>
       </div>
 
+      {/* RSVP Section for Pending Participants */}
+      {actualViewMode === 'details' && meeting.status === 'Scheduled' && (
+        (() => {
+          const myParticipantRecord = meeting.participants?.find((p: any) => (p.user?._id || p.user) === currentUserId);
+          if (myParticipantRecord && myParticipantRecord.status === 'Pending') {
+            return (
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800/50 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+                <div>
+                  <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100 flex items-center gap-2">
+                    <CheckCircle className="text-blue-500" size={20} /> You're invited to this meeting
+                  </h3>
+                  <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">Please let the organizer know if you can attend.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => handleRsvp('Accepted')}
+                    className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-medium transition-colors shadow-sm"
+                  >
+                    Accept
+                  </button>
+                  <button 
+                    onClick={() => setIsDeclineModalOpen(true)}
+                    className="px-6 py-2 bg-white dark:bg-gray-800 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl text-sm font-medium transition-colors shadow-sm"
+                  >
+                    Decline...
+                  </button>
+                </div>
+              </div>
+            );
+          }
+          return null;
+        })()
+      )}
+
+      {/* Pending Nominations for Organizer */}
+      {actualViewMode === 'details' && isOrganizerOrAdmin && meeting.participants?.some((p: any) => p.status === 'Declined' && p.nomineeStatus === 'Pending') && (
+        <div className="bg-white dark:bg-gray-900 border border-amber-200 dark:border-amber-800/50 rounded-2xl shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-gray-100 dark:border-gray-800 bg-amber-50/50 dark:bg-amber-900/10">
+            <h3 className="text-lg font-bold text-amber-900 dark:text-amber-100 flex items-center gap-2">
+              <Users className="text-amber-500" size={20} /> Pending Nominations
+            </h3>
+            <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">Some participants declined and proposed substitutes. Please review.</p>
+          </div>
+          <div className="divide-y divide-gray-100 dark:divide-gray-800">
+            {meeting.participants.filter((p: any) => p.status === 'Declined' && p.nomineeStatus === 'Pending').map((p: any) => (
+              <div key={p.user._id || p.user} className="p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-semibold text-gray-900 dark:text-white">{p.user.name || 'Unknown User'}</span>
+                    <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">Original</span>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 italic mb-2">"{p.reason || 'No reason provided.'}"</p>
+                  <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
+                    <CheckSquare size={14} />
+                    <span>Proposed substitute: <strong>{allUsers.find(u => u._id === p.nominee)?.name || 'Unknown'}</strong></span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => handleApproveNominee(p.user._id || p.user)}
+                    className="px-4 py-2 bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Approve
+                  </button>
+                  <button 
+                    onClick={() => handleRejectNominee(p.user._id || p.user)}
+                    className="px-4 py-2 bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Decline Modal */}
+      {isDeclineModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Decline Meeting</h3>
+              <p className="text-sm text-gray-500 mt-1">Please provide a reason and optionally propose someone to attend on your behalf.</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason for declining <span className="text-red-500">*</span></label>
+                <textarea 
+                  required
+                  value={declineReason}
+                  onChange={(e) => setDeclineReason(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm dark:text-white"
+                  placeholder="e.g. Scheduling conflict with client..."
+                  rows={3}
+                ></textarea>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Propose a Substitute (Optional)</label>
+                <select 
+                  value={selectedNominee}
+                  onChange={(e) => setSelectedNominee(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm dark:text-white"
+                >
+                  <option value="">Select a user...</option>
+                  {allUsers.filter((u: any) => u._id !== currentUserId && !meeting.participants?.some((p: any) => (p.user?._id || p.user) === u._id)).map((u: any) => (
+                    <option key={u._id} value={u._id}>{u.name} ({u.department || 'No Dept'})</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-2">The organizer will review your proposed substitute.</p>
+              </div>
+            </div>
+            <div className="p-6 bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3">
+              <button 
+                onClick={() => setIsDeclineModalOpen(false)}
+                className="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  if (!declineReason.trim()) {
+                    alert('Please provide a reason for declining.');
+                    return;
+                  }
+                  handleRsvp('Declined', declineReason, selectedNominee);
+                }}
+                className="px-5 py-2.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm"
+              >
+                Submit Decline
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Participant List Modal */}
+      {isParticipantListModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm text-left">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Users className="text-blue-500" size={20} /> Invited Participants
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">{meeting.participants?.length || 0} people invited to this meeting</p>
+              </div>
+              <button 
+                onClick={() => setIsParticipantListModalOpen(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-0 overflow-y-auto flex-1">
+              {meeting.participants?.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">No participants invited.</div>
+              ) : (
+                <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {/* Organizer first */}
+                  {meeting.organizerId && (
+                    <div className="p-4 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                      <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400 flex items-center justify-center font-bold text-sm">
+                        {meeting.organizerId.name?.charAt(0) || 'O'}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                          {meeting.organizerId.name || 'Unknown'}
+                          <span className="text-[10px] px-2 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 rounded-full font-bold uppercase tracking-wider">Organizer</span>
+                        </p>
+                        <p className="text-xs text-gray-500">{meeting.organizerId.email}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Regular Participants */}
+                  {meeting.participants?.map((p: any) => {
+                    const u = p.user;
+                    if (!u) return null;
+                    return (
+                      <div key={u._id} className="p-4 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                        <div className="w-10 h-10 rounded-full bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 flex items-center justify-center font-bold text-sm">
+                          {u.name?.charAt(0) || '?'}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                            {u.name || 'Unknown User'}
+                            {p.nomineeStatus === 'Approved' && (
+                              <span className="text-[10px] px-2 py-0.5 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400 rounded-full font-bold uppercase tracking-wider flex items-center gap-1">
+                                Rep. by {allUsers.find(au => au._id === p.nominee)?.name || 'Nominee'}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs text-gray-500">{u.email} {u.department ? `• ${u.department}` : ''}</p>
+                        </div>
+                        <div>
+                          <span className={`text-[11px] px-2.5 py-1 rounded-full font-medium ${
+                            p.status === 'Accepted' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                            p.status === 'Declined' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                            'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                          }`}>
+                            {p.status}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 flex justify-end">
+              <button 
+                onClick={() => setIsParticipantListModalOpen(false)}
+                className="px-5 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Agenda Section */}
-      {viewMode === 'agenda' && (
+      {actualViewMode === 'agenda' && (
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm overflow-hidden">
         <div className="p-6 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 flex justify-between items-center">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -679,7 +1007,7 @@ export default function MeetingDetailsPage() {
       )}
 
       {/* Offline Report Section */}
-      {viewMode === 'details' && (meeting.mode === 'Offline' || meeting.offlineReportFileUrl) && (
+      {(actualViewMode === 'details' || actualViewMode === 'mom' || isNominee) && (meeting.mode === 'Offline' || meeting.offlineReportFileUrl) && (
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm p-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -728,7 +1056,7 @@ export default function MeetingDetailsPage() {
       )}
 
       {/* Live Notes & Action Items Section */}
-      {viewMode === 'details' && (
+      {actualViewMode === 'details' && !isNominee && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[450px]">
         {/* Live Notes Section */}
         <div className="lg:col-span-2 h-full">

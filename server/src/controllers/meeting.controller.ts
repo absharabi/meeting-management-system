@@ -342,22 +342,27 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
     }
 
     // Enforce 24-hour deadline for editing meeting details
-    const targetDate = new Date(target.date);
-    const meetingDateStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth()+1).padStart(2,'0')}-${String(targetDate.getDate()).padStart(2,'0')}`;
-    const startTimeStr = target.startTime || '00:00';
-    const meetingStartDateTime = new Date(`${meetingDateStr}T${startTimeStr}:00`);
-    const now = new Date();
+    // Only enforce this if we are updating details other than status
+    const isOnlyStatusUpdate = Object.keys(req.body).length === 1 && req.body.status;
     
-    if (target.meetingType === 'Emergency Meeting') {
-      if (meetingStartDateTime.getTime() <= now.getTime()) {
-        res.status(400).json({ message: 'Cannot edit the emergency meeting after it has started.' });
-        return;
-      }
-    } else {
-      const hoursDiff = (meetingStartDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-      if (hoursDiff < 24) {
-        res.status(400).json({ message: 'Meeting details can only be edited up to 24 hours before the meeting.' });
-        return;
+    if (!isOnlyStatusUpdate) {
+      const targetDate = new Date(target.date);
+      const meetingDateStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth()+1).padStart(2,'0')}-${String(targetDate.getDate()).padStart(2,'0')}`;
+      const startTimeStr = target.startTime || '00:00';
+      const meetingStartDateTime = new Date(`${meetingDateStr}T${startTimeStr}:00`);
+      const now = new Date();
+      
+      if (target.meetingType === 'Emergency Meeting') {
+        if (meetingStartDateTime.getTime() <= now.getTime()) {
+          res.status(400).json({ message: 'Cannot edit the emergency meeting after it has started.' });
+          return;
+        }
+      } else {
+        const hoursDiff = (meetingStartDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+        if (hoursDiff < 24) {
+          res.status(400).json({ message: 'Meeting details can only be edited up to 24 hours before the meeting.' });
+          return;
+        }
       }
     }
 
@@ -681,14 +686,14 @@ export const markAttendance = async (req: Request, res: Response): Promise<void>
 export const rsvpMeeting = async (req: Request, res: Response): Promise<void> => {
   try {
     const requestingUser = (req as any).user;
-    const { status } = req.body; // 'Accepted' | 'Declined'
+    const { status, reason, nomineeId } = req.body; // 'Accepted' | 'Declined'
     
     if (!['Accepted', 'Declined'].includes(status)) {
       res.status(400).json({ message: 'Invalid status' });
       return;
     }
 
-    const meeting = await Meeting.findById(req.params.id);
+    const meeting = await Meeting.findById(req.params.id).populate('organizerId', 'name email');
     if (!meeting) {
       res.status(404).json({ message: 'Meeting not found' });
       return;
@@ -701,10 +706,124 @@ export const rsvpMeeting = async (req: Request, res: Response): Promise<void> =>
     }
 
     meeting.participants[participantIndex].status = status;
+    if (status === 'Declined') {
+      if (reason) meeting.participants[participantIndex].reason = reason;
+      if (nomineeId) {
+        meeting.participants[participantIndex].nominee = nomineeId;
+        meeting.participants[participantIndex].nomineeStatus = 'Pending';
+      }
+    }
+    
     await meeting.save();
-
+    
     res.json({ message: `RSVP updated to ${status}`, meeting });
   } catch (error) {
     res.status(500).json({ message: 'Server error while updating RSVP', error });
+  }
+};
+
+export const approveNominee = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const requestingUser = (req as any).user;
+    const meetingId = req.params.id;
+    const participantId = req.params.participantId;
+
+    const meeting = await Meeting.findById(meetingId).populate('organizerId', 'name email');
+    if (!meeting) {
+      res.status(404).json({ message: 'Meeting not found' });
+      return;
+    }
+
+    if (!isGlobalAdmin(requestingUser.role) && meeting.organizerId._id.toString() !== requestingUser.id) {
+      res.status(403).json({ message: 'Only the organizer can approve nominees' });
+      return;
+    }
+
+    const pIndex = meeting.participants.findIndex(p => p.user.toString() === participantId);
+    if (pIndex === -1 || !meeting.participants[pIndex].nominee) {
+      res.status(400).json({ message: 'Invalid nomination' });
+      return;
+    }
+
+    meeting.participants[pIndex].nomineeStatus = 'Approved';
+    const nomineeId = meeting.participants[pIndex].nominee;
+
+    // Add nominee to participants list and force them to 'Accepted'
+    const nomineeIndex = meeting.participants.findIndex(p => p.user.toString() === nomineeId?.toString());
+    if (nomineeIndex === -1 && nomineeId) {
+      meeting.participants.push({ user: nomineeId, status: 'Accepted' } as any);
+    } else if (nomineeIndex !== -1) {
+      meeting.participants[nomineeIndex].status = 'Accepted';
+    }
+
+    await meeting.save();
+
+    // Send emails
+    const ogParticipantDoc = await User.findById(participantId);
+    const nomineeDoc = await User.findById(nomineeId);
+    const organizerName = (meeting.organizerId as any)?.name || 'The Organizer';
+
+    if (ogParticipantDoc?.email && nomineeDoc?.email) {
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2>Nomination Approved</h2>
+          <p><strong>${organizerName}</strong> has approved the nomination.</p>
+          <p><strong>${nomineeDoc.name}</strong> has been invited to attend <strong>${meeting.title}</strong> on behalf of <strong>${ogParticipantDoc.name}</strong>.</p>
+        </div>
+      `;
+      sendEmail(ogParticipantDoc.email, `Nomination Approved: ${meeting.title}`, emailHtml);
+      sendEmail(nomineeDoc.email, `Meeting Invitation (Nominee): ${meeting.title}`, emailHtml);
+    }
+
+    res.json({ message: 'Nominee approved successfully', meeting });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+export const rejectNominee = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const requestingUser = (req as any).user;
+    const meetingId = req.params.id;
+    const participantId = req.params.participantId;
+
+    const meeting = await Meeting.findById(meetingId).populate('organizerId', 'name email');
+    if (!meeting) {
+      res.status(404).json({ message: 'Meeting not found' });
+      return;
+    }
+
+    if (!isGlobalAdmin(requestingUser.role) && meeting.organizerId._id.toString() !== requestingUser.id) {
+      res.status(403).json({ message: 'Only the organizer can reject nominees' });
+      return;
+    }
+
+    const pIndex = meeting.participants.findIndex(p => p.user.toString() === participantId);
+    if (pIndex === -1 || !meeting.participants[pIndex].nominee) {
+      res.status(400).json({ message: 'Invalid nomination' });
+      return;
+    }
+
+    meeting.participants[pIndex].nomineeStatus = 'Rejected';
+    await meeting.save();
+
+    // Send email to original participant
+    const ogParticipantDoc = await User.findById(participantId);
+    const organizerName = (meeting.organizerId as any)?.name || 'The Organizer';
+
+    if (ogParticipantDoc?.email) {
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2>Nomination Rejected</h2>
+          <p><strong>${organizerName}</strong> has rejected your proposed nominee for <strong>${meeting.title}</strong>.</p>
+          <p>Please contact the organizer if you have any questions.</p>
+        </div>
+      `;
+      sendEmail(ogParticipantDoc.email, `Nomination Rejected: ${meeting.title}`, emailHtml);
+    }
+
+    res.json({ message: 'Nominee rejected successfully', meeting });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
   }
 };

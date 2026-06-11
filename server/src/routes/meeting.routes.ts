@@ -5,7 +5,10 @@ import {
   updateMeeting, 
   deleteMeeting,
   hardDeleteMeeting,
-  markAttendance
+  markAttendance,
+  rsvpMeeting,
+  approveNominee,
+  rejectNominee
 } from '../controllers/meeting.controller';
 import { protect } from '../middleware/auth.middleware';
 
@@ -23,6 +26,9 @@ router.delete('/:id/hard', hardDeleteMeeting);
 
 // Specific Feature Routes
 router.post('/:id/attendance', markAttendance);
+router.put('/:id/rsvp', rsvpMeeting);
+router.put('/:id/nominees/:participantId/approve', approveNominee);
+router.put('/:id/nominees/:participantId/reject', rejectNominee);
 
 
 import agendaRoutes from './agenda.routes';

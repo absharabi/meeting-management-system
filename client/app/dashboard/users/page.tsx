@@ -12,6 +12,7 @@ import UserTable from "@/components/users/UserTable";
 import { departments, ManagedUser, roles, statuses } from "@/data/usersData";
 import { Download, MailQuestion, Plus, Trash2, Upload, UserCheck, UserCog, UserX, Users, X } from "lucide-react";
 import * as XLSX from "xlsx";
+import { useRouter } from "next/navigation";
 
 interface ToastState {
   message: string;
@@ -79,6 +80,7 @@ const buildPayload = (values: UserFormValues) => ({
 });
 
 export default function UsersPage() {
+  const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [department, setDepartment] = useState("All Departments");
@@ -101,12 +103,20 @@ export default function UsersPage() {
       const storedUser = localStorage.getItem('user');
       if (storedUser) {
         const parsed = JSON.parse(storedUser);
-        setCurrentUserRole(parsed.role || 'User');
+        const userRole = parsed.role || 'User';
+        setCurrentUserRole(userRole);
+        
+        if (userRole !== 'SuperAdmin' && userRole !== 'Admin') {
+          router.replace('/unauthorized?reason=ACCESS_DENIED');
+        }
+      } else {
+        router.replace('/login');
       }
     } catch (e) {
       console.error(e);
+      router.replace('/login');
     }
-  }, []);
+  }, [router]);
 
   const notify = useCallback((message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });

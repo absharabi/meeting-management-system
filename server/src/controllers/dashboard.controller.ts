@@ -180,27 +180,24 @@ const buildStats = async (scope: any, role: string, userId: string) => {
   if (role === Role.Admin) {
     const user = await User.findById(userId).select('department');
     const departmentUserCount = user?.department ? await User.countDocuments({ department: user.department, isActive: true }) : 0;
-    const [upcomingMeetings, pendingResponses, attendanceAverage, activeOrganizers] = await Promise.all([
+    const [upcomingMeetings, attendanceAverage, activeOrganizers] = await Promise.all([
       countMeetings(scope, upcomingFilter),
-      Meeting.countDocuments(mergeQuery(scope, { 'participants.status': 'Pending' })),
       calculateAttendanceAverage(scope),
       Meeting.distinct('organizerId', scope).then((items) => items.length),
     ]);
 
     return [
       { id: 1, title: 'Upcoming Meetings', value: formatNumber(upcomingMeetings), description: 'In your department scope' },
-      { id: 2, title: 'Pending RSVPs', value: formatNumber(pendingResponses), description: 'Participant responses pending' },
       { id: 3, title: 'Attendance Avg', value: formatPercentage(attendanceAverage), description: 'Completed meetings' },
       { id: 4, title: 'Active Organizers', value: formatNumber(activeOrganizers || departmentUserCount), description: 'Users scheduling meetings' },
     ];
   }
 
   const objectUserId = new mongoose.Types.ObjectId(userId);
-  const [totalMeetings, organized, upcomingParticipations, pendingInvitations, attendanceAverage, openActionItems] = await Promise.all([
+  const [totalMeetings, organized, upcomingParticipations, attendanceAverage, openActionItems] = await Promise.all([
     countMeetings(scope),
     Meeting.countDocuments({ organizerId: userId }),
     Meeting.countDocuments({ 'participants.user': userId, ...upcomingFilter }),
-    Meeting.countDocuments({ participants: { $elemMatch: { user: objectUserId, status: 'Pending' } } }),
     calculateAttendanceAverage({ attendance: userId }),
     ActionItem.countDocuments({ assigneeId: userId, status: { $ne: ActionItemStatus.DONE } }),
   ]);
@@ -209,7 +206,6 @@ const buildStats = async (scope: any, role: string, userId: string) => {
     { id: 1, title: 'All Meetings', value: formatNumber(totalMeetings), description: 'Meetings you can access' },
     { id: 2, title: 'Meetings Organized', value: formatNumber(organized), description: 'Created by you' },
     { id: 3, title: 'Upcoming Participations', value: formatNumber(upcomingParticipations), description: 'Scheduled from today onward' },
-    { id: 4, title: 'Pending Invitations', value: formatNumber(pendingInvitations), description: 'Requires RSVP' },
     { id: 5, title: 'Attendance', value: formatPercentage(attendanceAverage), description: 'Completed meetings attended' },
   ];
 };

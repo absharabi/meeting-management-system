@@ -766,43 +766,45 @@ export default function MomPage() {
 
         <SummaryTable items={agendaItems} />
 
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 mt-6">
-          <div className="mb-4">
-            <h2 className="font-bold text-gray-900 dark:text-white">General Remarks</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Add any general remarks or comments regarding the overall meeting.</p>
-          </div>
-          <div className="space-y-4">
-            {meeting?.momGeneralRemarks?.map((remark: any, index: number) => (
-              <div key={index} className="rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-semibold text-sm text-gray-900 dark:text-white">{remark.userName}</span>
-                  <span className="text-xs text-gray-500">{new Date(remark.createdAt).toLocaleString('en-IN', {
-                    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                  })}</span>
+        {isOrganizerOrAdmin && (
+          <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 mt-6">
+            <div className="mb-4">
+              <h2 className="font-bold text-gray-900 dark:text-white">General Remarks</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Add any general remarks or comments regarding the overall meeting.</p>
+            </div>
+            <div className="space-y-4">
+              {meeting?.momGeneralRemarks?.map((remark: any, index: number) => (
+                <div key={index} className="rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-semibold text-sm text-gray-900 dark:text-white">{remark.userName}</span>
+                    <span className="text-xs text-gray-500">{new Date(remark.createdAt).toLocaleString('en-IN', {
+                      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                    })}</span>
+                  </div>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">{remark.text}</p>
                 </div>
-                <p className="text-sm text-gray-700 dark:text-gray-300">{remark.text}</p>
-              </div>
-            ))}
-            
-            {canAddRemark && (
-              <div className="mt-4 flex gap-2">
-                <input
-                  type="text"
-                  value={newGeneralRemark}
-                  onChange={(e) => setNewGeneralRemark(e.target.value)}
-                  placeholder="Type a general remark..."
-                  className="flex-1 rounded-lg border px-3 py-2 text-sm dark:bg-gray-900 dark:border-gray-700"
-                />
-                <button
-                  onClick={addGeneralRemark}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                >
-                  Add Remark
-                </button>
-              </div>
-            )}
-          </div>
-        </section>
+              ))}
+              
+              {canAddRemark && (
+                <div className="mt-4 flex gap-2">
+                  <input
+                    type="text"
+                    value={newGeneralRemark}
+                    onChange={(e) => setNewGeneralRemark(e.target.value)}
+                    placeholder="Type a general remark..."
+                    className="flex-1 rounded-lg border px-3 py-2 text-sm dark:bg-gray-900 dark:border-gray-700"
+                  />
+                  <button
+                    onClick={addGeneralRemark}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                  >
+                    Add Remark
+                  </button>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
       </div>
     </main>
   );

@@ -17,7 +17,7 @@ interface Meeting {
   startTime: string;
   status: string;
   meetingType?: string;
-  participants: { user: User; status: string }[];
+  participants: { user: User; status: string; nomineeStatus?: string; nominee?: any; reason?: string }[];
   organizerId?: any;
   attendance?: any[];
   visibility?: string;
@@ -42,6 +42,13 @@ export default function MeetingTable({
   const [attendanceModalMeeting, setAttendanceModalMeeting] = useState<Meeting | null>(null);
   const [attendedIds, setAttendedIds] = useState<Set<string>>(new Set());
   const [isSubmittingAttendance, setIsSubmittingAttendance] = useState(false);
+
+  // Decline Modal State
+  const [isDeclineModalOpen, setIsDeclineModalOpen] = useState(false);
+  const [declineReason, setDeclineReason] = useState('');
+  const [selectedNominee, setSelectedNominee] = useState('');
+  const [declineMeetingId, setDeclineMeetingId] = useState<string | null>(null);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
 
   const fetchMeetings = async (query = '') => {
     try {
@@ -80,6 +87,43 @@ export default function MeetingTable({
       setActiveTab('all');
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const token = localStorage.getItem('accessToken');
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (res.ok) setAllUsers(await res.json());
+      } catch (e) {}
+    };
+    fetchUsers();
+  }, []);
+
+  const handleRsvp = async (meetingId: string, status: 'Accepted' | 'Declined', reason = '', nomineeId = '') => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/rsvp`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ status, reason, nomineeId })
+      });
+      if (res.ok) {
+        setIsDeclineModalOpen(false);
+        setDeclineReason('');
+        setSelectedNominee('');
+        setDeclineMeetingId(null);
+        toast.success(`RSVP updated to ${status}`);
+        fetchMeetings(searchQuery);
+      } else {
+        toast.error('Failed to update RSVP');
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Network error');
+    }
+  };
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this meeting?')) return;
@@ -147,9 +191,8 @@ export default function MeetingTable({
       (p: any) => p.user?._id === currentUserId || p.user === currentUserId || p.user?._id === currentUser.id || p.user?._id === currentUser._id
     );
 
-    if (participantRecord?.status === 'Declined' && !isOrganizer && currentUser.role !== 'Admin' && currentUser.role !== 'SuperAdmin') {
-      return false;
-    }
+    // The user requested that even if a participant declines (with or without a nominee),
+    // the meeting should still be shown in their dashboard.
 
     if (activeTab === 'all') return true;
 
@@ -268,6 +311,7 @@ export default function MeetingTable({
               <option value="Ongoing">Ongoing</option>
               <option value="Completed">Completed</option>
               <option value="Cancelled">Cancelled</option>
+              <option value="Postponed">Postponed</option>
             </select>
             <select
               value={dateFilter}
@@ -335,7 +379,14 @@ export default function MeetingTable({
                           allUsers.push({ user: meeting.organizerId, status: 'Organizer' });
                         }
                         if (meeting.participants && Array.isArray(meeting.participants)) {
-                          const uniqueParticipants = meeting.participants.filter((p: any) => p.user && p.user._id !== organizerIdStr);
+                          const uniqueParticipants = meeting.participants.filter((p: any) => {
+                            if (!p.user || p.user._id === organizerIdStr) return false;
+                            // If the participant declined and doesn't have an approved nominee, remove them from the UI list
+                            if (p.status === 'Declined' && p.nomineeStatus !== 'Approved') return false;
+                            
+                            const isNomineeForSomeoneElse = meeting.participants.some((other: any) => other.nominee === p.user._id && other.nomineeStatus === 'Approved');
+                            return !isNomineeForSomeoneElse;
+                          });
                           allUsers.push(...uniqueParticipants);
                         }
                         
@@ -369,6 +420,7 @@ export default function MeetingTable({
                     <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm border ${meeting.status === 'Completed' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400' :
                         meeting.status === 'Ongoing' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400' :
                           meeting.status === 'Cancelled' ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400' :
+                            meeting.status === 'Postponed' ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-400' :
                             'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-400'
                       }`}>
                       {meeting.status === 'Ongoing' && (
@@ -380,12 +432,38 @@ export default function MeetingTable({
                       {meeting.status === 'Scheduled' && <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>}
                       {meeting.status === 'Completed' && <span className="h-1.5 w-1.5 rounded-full bg-green-500"></span>}
                       {meeting.status === 'Cancelled' && <span className="h-1.5 w-1.5 rounded-full bg-red-500"></span>}
+                      {meeting.status === 'Postponed' && <span className="h-1.5 w-1.5 rounded-full bg-purple-500"></span>}
                       {meeting.status}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right relative">
                     <div className="flex items-center justify-end gap-2">
-
+                      {(() => {
+                        const myParticipantRecord = meeting.participants?.find((p: any) => (p.user?._id || p.user) === currentUser?.id || (p.user?._id || p.user) === currentUser?._id);
+                        if (myParticipantRecord && myParticipantRecord.status === 'Pending' && meeting.status === 'Scheduled') {
+                          return (
+                            <>
+                              <button 
+                                onClick={() => handleRsvp(meeting._id, 'Accepted')}
+                                className="flex flex-col items-center justify-center text-xs font-medium text-gray-500 hover:text-green-600 dark:text-gray-400 dark:hover:text-green-400 px-2 py-1 transition-colors"
+                              >
+                                <Check size={16} className="mb-0.5" /> Accept
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  setDeclineMeetingId(meeting._id);
+                                  setIsDeclineModalOpen(true);
+                                }}
+                                className="flex flex-col items-center justify-center text-xs font-medium text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 px-2 py-1 transition-colors"
+                              >
+                                <X size={16} className="mb-0.5" /> Decline
+                              </button>
+                              <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
+                            </>
+                          );
+                        }
+                        return null;
+                      })()}
                       <button
                         onClick={() => setOpenDropdownId(openDropdownId === meeting._id ? null : meeting._id)}
                         className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -438,28 +516,40 @@ export default function MeetingTable({
                             </>
                           )}
 
-                          {/* MoM link for participants who are not organizers/admins */}
-                          {currentUser && meeting.participants?.some((p: any) => p.user?._id === currentUser.id || p.user?._id === currentUser._id) && !(meeting.organizerId?._id === currentUser.id || meeting.organizerId?._id === currentUser._id || currentUser.role === 'SuperAdmin' || currentUser.role === 'Admin') && (
-                            <>
-                              <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                              {meeting.status !== 'Completed' && (
-                                <Link
-                                  href={`/meetings/${meeting._id}?view=agenda`}
-                                  className="flex items-center gap-2 px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 w-full text-left"
-                                  onClick={() => setOpenDropdownId(null)}
-                                >
-                                  Manage Agenda
-                                </Link>
-                              )}
-                              <Link
-                                href={`/meetings/${meeting._id}/mom`}
-                                className="flex items-center gap-2 px-4 py-2 text-sm text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 w-full text-left"
-                                onClick={() => setOpenDropdownId(null)}
-                              >
-                                <FileText size={14} /> Minutes of Meeting
-                              </Link>
-                            </>
-                          )}
+                          {/* MoM link for participants who are not organizers/admins/nominees */}
+                          {(() => {
+                            if (!currentUser) return null;
+                            const isNominee = meeting.participants?.some((p: any) => p.nominee === (currentUser.id || currentUser._id) && p.nomineeStatus === 'Approved');
+                            if (isNominee) return null; // Nominees only attend, no access to agenda/MoM
+                            
+                            const isParticipant = meeting.participants?.some((p: any) => (p.user?._id || p.user) === (currentUser.id || currentUser._id));
+                            const isOrganizerOrAdmin = (meeting.organizerId?._id === currentUser.id || meeting.organizerId?._id === currentUser._id || currentUser.role === 'SuperAdmin' || currentUser.role === 'Admin');
+                            
+                            if (isParticipant && !isOrganizerOrAdmin) {
+                              return (
+                                <>
+                                  <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                                  {meeting.status !== 'Completed' && (
+                                    <Link
+                                      href={`/meetings/${meeting._id}?view=agenda`}
+                                      className="flex items-center gap-2 px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 w-full text-left"
+                                      onClick={() => setOpenDropdownId(null)}
+                                    >
+                                      Manage Agenda
+                                    </Link>
+                                  )}
+                                  <Link
+                                    href={`/meetings/${meeting._id}/mom`}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 w-full text-left"
+                                    onClick={() => setOpenDropdownId(null)}
+                                  >
+                                    <FileText size={14} /> Minutes of Meeting
+                                  </Link>
+                                </>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       </div>
                     )}
@@ -494,16 +584,37 @@ export default function MeetingTable({
                     {participantsToMark.map((p: any) => {
                       const user = p.user;
                       if (!user) return null;
+                      
+                      // If the participant declined and doesn't have an approved nominee, remove them from attendance marking
+                      if (p.status === 'Declined' && p.nomineeStatus !== 'Approved') return null;
+                      
+                      const isNomineeForSomeoneElse = participantsToMark.some((other: any) => 
+                        (other.nominee === user._id || other.nominee?._id === user._id) && other.nomineeStatus === 'Approved'
+                      );
+                      if (isNomineeForSomeoneElse) return null; // Handle them via original participant
+
+                      let label = user.name;
+                      let nomineeUserId = user._id;
+                      
+                      if (p.nomineeStatus === 'Approved' && p.nominee) {
+                        const nomineeIdStr = typeof p.nominee === 'string' ? p.nominee : p.nominee._id;
+                        const nomineeUser = allUsers.find((u: any) => u._id === nomineeIdStr);
+                        if (nomineeUser) {
+                          label = `${user.name} (Represented by ${nomineeUser.name})`;
+                          nomineeUserId = nomineeUser._id;
+                        }
+                      }
+
                       return (
                         <label key={user._id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors">
                           <input
                             type="checkbox"
-                            checked={attendedIds.has(user._id)}
-                            onChange={() => toggleAttendance(user._id)}
+                            checked={attendedIds.has(nomineeUserId)}
+                            onChange={() => toggleAttendance(nomineeUserId)}
                             className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                           />
                           <div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">{user.name}</p>
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
                             <p className="text-xs text-gray-500">{user.email}</p>
                           </div>
                         </label>
@@ -527,6 +638,68 @@ export default function MeetingTable({
                 className="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
                 {isSubmittingAttendance ? 'Saving...' : 'Save Attendance'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Decline Modal */}
+      {isDeclineModalOpen && declineMeetingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm text-left">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Decline Meeting</h3>
+              <p className="text-sm text-gray-500 mt-1">Please provide a reason and optionally propose someone to attend on your behalf.</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason for declining <span className="text-red-500">*</span></label>
+                <textarea 
+                  required
+                  value={declineReason}
+                  onChange={(e) => setDeclineReason(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm dark:text-white"
+                  placeholder="e.g. Scheduling conflict with client..."
+                  rows={3}
+                ></textarea>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Propose a Substitute (Optional)</label>
+                <select 
+                  value={selectedNominee}
+                  onChange={(e) => setSelectedNominee(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm dark:text-white"
+                >
+                  <option value="">Select a user...</option>
+                  {allUsers.filter((u: any) => u._id !== currentUser?.id && u._id !== currentUser?._id && !meetings.find(m => m._id === declineMeetingId)?.participants?.some((p: any) => (p.user?._id || p.user) === u._id)).map((u: any) => (
+                    <option key={u._id} value={u._id}>{u.name} {u.department ? `(${u.department})` : ''}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-2">The organizer will review your proposed substitute.</p>
+              </div>
+            </div>
+            <div className="p-6 bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3">
+              <button 
+                onClick={() => {
+                  setIsDeclineModalOpen(false);
+                  setDeclineMeetingId(null);
+                }}
+                className="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  if (!declineReason.trim()) {
+                    toast.error('Please provide a reason for declining.');
+                    return;
+                  }
+                  handleRsvp(declineMeetingId, 'Declined', declineReason, selectedNominee);
+                }}
+                className="px-5 py-2.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm"
+              >
+                Submit Decline
               </button>
             </div>
           </div>

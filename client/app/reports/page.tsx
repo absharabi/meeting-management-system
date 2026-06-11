@@ -340,17 +340,39 @@ export default function ReportsPage() {
       doc.setTextColor(themePrimary[0], themePrimary[1], themePrimary[2]);
       doc.text(`Participants (${metrics.totalAttended} / ${metrics.totalParticipants} Attended)`, 14, finalY);
       
-      const attendedIds = new Set(meeting.attendance.map((u: any) => u._id));
-      const participantRows = meeting.participants.map((p: any, i: number) => {
+      const attendedIds = new Set(meeting.attendance.map((u: any) => u._id || u));
+      const participantRows: any[] = [];
+      let counter = 1;
+
+      meeting.participants.forEach((p: any) => {
         const u = p.user;
-        const isAttended = attendedIds.has(u?._id) ? 'Present' : 'Absent';
-        return [i + 1, u?.name || 'Unknown', u?.email || 'N/A', p.status, isAttended];
+        if (!u) return;
+
+        // Check if this participant is someone else's nominee. If so, skip rendering a separate row for them.
+        const isNomineeForSomeoneElse = meeting.participants.some((other: any) => 
+          (other.nominee === u._id || other.nominee?._id === u._id) && other.nomineeStatus === 'Approved'
+        );
+        if (isNomineeForSomeoneElse) return;
+
+        let nameDisplay = u.name || 'Unknown';
+        let isAttended = attendedIds.has(u._id) ? 'Present' : 'Absent';
+
+        if (p.nomineeStatus === 'Approved' && p.nominee) {
+          const nomineeIdStr = typeof p.nominee === 'string' ? p.nominee : p.nominee._id;
+          const nomineeUser = meeting.participants.find((np: any) => np.user?._id === nomineeIdStr)?.user;
+          if (nomineeUser) {
+            nameDisplay = `${nameDisplay} (Represented by Nominee: ${nomineeUser.name})`;
+            isAttended = attendedIds.has(nomineeUser._id) ? 'Present (by Nominee)' : 'Absent';
+          }
+        }
+
+        participantRows.push([counter++, nameDisplay, u.email || 'N/A', isAttended]);
       });
 
       autoTable(doc, {
         startY: finalY + 5,
-        head: [['#', 'Name', 'Email', 'RSVP', 'Attendance']],
-        body: participantRows.length > 0 ? participantRows : [['-', 'No participants', '-', '-', '-']],
+        head: [['#', 'Name', 'Email', 'Attendance']],
+        body: participantRows.length > 0 ? participantRows : [['-', 'No participants', '-', '-']],
         theme: 'striped',
         headStyles: { fillColor: themeSecondary, textColor: 255 }, 
       });
@@ -560,13 +582,36 @@ export default function ReportsPage() {
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(overviewData), "Overview");
 
       // 2. Participants Sheet
-      const attendedIds = new Set(meeting.attendance.map((u: any) => u._id));
-      const participantsData = meeting.participants.map((p: any) => ({
-        Name: p.user?.name || 'Unknown',
-        Email: p.user?.email || 'N/A',
-        RSVP: p.status,
-        Attendance: attendedIds.has(p.user?._id) ? 'Present' : 'Absent'
-      }));
+      const attendedIds = new Set(meeting.attendance.map((u: any) => u._id || u));
+      const participantsData: any[] = [];
+      
+      meeting.participants.forEach((p: any) => {
+        const u = p.user;
+        if (!u) return;
+
+        const isNomineeForSomeoneElse = meeting.participants.some((other: any) => 
+          (other.nominee === u._id || other.nominee?._id === u._id) && other.nomineeStatus === 'Approved'
+        );
+        if (isNomineeForSomeoneElse) return;
+
+        let nameDisplay = u.name || 'Unknown';
+        let isAttended = attendedIds.has(u._id) ? 'Present' : 'Absent';
+
+        if (p.nomineeStatus === 'Approved' && p.nominee) {
+          const nomineeIdStr = typeof p.nominee === 'string' ? p.nominee : p.nominee._id;
+          const nomineeUser = meeting.participants.find((np: any) => np.user?._id === nomineeIdStr)?.user;
+          if (nomineeUser) {
+            nameDisplay = `${nameDisplay} (Represented by Nominee: ${nomineeUser.name})`;
+            isAttended = attendedIds.has(nomineeUser._id) ? 'Present' : 'Absent';
+          }
+        }
+
+        participantsData.push({
+          Name: nameDisplay,
+          Email: u.email || 'N/A',
+          Attendance: isAttended
+        });
+      });
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(participantsData), "Participants");
 
       // 3. Action Items Sheet
