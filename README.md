@@ -1,6 +1,6 @@
 # Meeting Management System
 
-A comprehensive, full-stack enterprise meeting management solution. This application streamlines the entire lifecycle of corporate and academic meetings—from scheduling, sending invitations, and tracking RSVPs, to drafting Minutes of Meetings (MoMs), generating professional PDF/Excel reports, and managing post-meeting Action Items.
+A comprehensive, full-stack enterprise meeting management solution specially designed for **NIT Calicut**. This application streamlines the entire lifecycle of corporate and academic meetings—from scheduling, sending invitations, and tracking RSVPs, to drafting Minutes of Meetings (MoMs), generating professional PDF/Excel reports, and managing post-meeting Action Items.
 
 ## Features
 
