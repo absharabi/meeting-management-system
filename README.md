@@ -39,23 +39,51 @@ A comprehensive, full-stack enterprise meeting management solution specially des
 
 ---
 
-## Step-by-Step Setup Guide
+## Setup and Installation
 
-Follow these instructions to run the project locally on your machine.
+We provide two methods for running the Meeting Management System locally: using **Docker** (Recommended for quick setup) or using **NPM** (for local development).
 
-### Prerequisites
-1. **Node.js**: Ensure you have Node.js (v18 or higher recommended) installed.
-2. **MongoDB**: You need a running MongoDB database (either a local instance or a cloud MongoDB Atlas URI).
-3. **Git**: To clone the repository.
+### Method 1: Docker Setup (Recommended)
 
-### 1. Clone the Repository
-Clone the project to your local machine and navigate into the directory:
+**Prerequisites:**
+- Docker and Docker Compose installed on your machine.
+- Git to clone the repository.
+
+**1. Clone the Repository**
 ```bash
 git clone https://github.com/absharabi/meeting-management-system.git
 cd meeting-management-system
 ```
 
-### 2. Backend Setup
+**2. Configure Environment Variables (Optional)**
+The `docker-compose.yml` file already comes with pre-configured environment variables for easy local testing. However, if you need to configure email for notifications, you should create a `.env` file in the `server` directory:
+```env
+# Email Configuration (For Sending Invites/Notifications)
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASS=your_gmail_app_password
+```
+
+**3. Run the Application**
+Start the entire stack (MongoDB, Backend, and Frontend) using Docker Compose:
+```bash
+docker-compose up --build
+```
+*The frontend will be available at `http://localhost:3000` and the backend server at `http://localhost:5000`.*
+
+### Method 2: NPM Setup (Manual Development)
+
+**Prerequisites:**
+1. **Node.js**: Ensure you have Node.js (v18 or higher recommended) installed.
+2. **MongoDB**: You need a running MongoDB database (either a local instance or a cloud MongoDB Atlas URI).
+3. **Git**: To clone the repository.
+
+**1. Clone the Repository**
+```bash
+git clone https://github.com/absharabi/meeting-management-system.git
+cd meeting-management-system
+```
+
+**2. Backend Setup**
 Navigate to the `server` directory, install dependencies, and configure your environment:
 ```bash
 cd server
@@ -81,7 +109,7 @@ npm run dev
 ```
 *The server will start on `http://localhost:5000`.*
 
-### 3. Frontend Setup
+**3. Frontend Setup**
 Open a new terminal window, navigate to the `client` directory, install dependencies, and configure your environment:
 ```bash
 cd client
@@ -89,7 +117,7 @@ npm install
 ```
 
 **Configure Frontend Environment Variables:**
-Create a `.env.local` file in the `client` directory:
+Create a `.env` file in the `client` directory:
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:5000
 ```
@@ -100,7 +128,7 @@ npm run dev
 ```
 *The application will be accessible at `http://localhost:3000`.*
 
-### 4. Optional: Database Seeding
+**4. Optional: Database Seeding**
 If you want to pre-populate your database with dummy users and test data, you can run the seed script from the server directory:
 ```bash
 cd server
