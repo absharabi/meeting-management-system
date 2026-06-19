@@ -109,6 +109,31 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    
+    // Strict enforcement for time inputs
+    if ((name === 'startTime' || name === 'endTime') && formData.date) {
+      const now = new Date();
+      const localTodayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      
+      if (formData.date === localTodayStr) {
+        const minTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        if (name === 'startTime' && value < minTimeStr) {
+          toast.error("Cannot select a past time for today's meeting.");
+          setFormData(prev => ({ ...prev, [name]: minTimeStr }));
+          return;
+        }
+        if (name === 'endTime' && value < (formData.startTime || minTimeStr)) {
+          toast.error("End time must be after start time.");
+          setFormData(prev => ({ ...prev, [name]: formData.startTime || minTimeStr }));
+          return;
+        }
+      } else if (name === 'endTime' && formData.startTime && value < formData.startTime) {
+        toast.error("End time must be after start time.");
+        setFormData(prev => ({ ...prev, [name]: formData.startTime }));
+        return;
+      }
+    }
+
     setFormData(prev => {
       const newData = { ...prev, [name]: value };
       if (name === 'visibility' && value === 'Public') {
@@ -129,6 +154,25 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
       setError('At least 1 participant is required to create or edit a meeting.');
       setIsSubmitting(false);
       return;
+    }
+
+    if (formData.date && formData.startTime) {
+      const [year, month, day] = formData.date.split('-').map(Number);
+      const meetingDateObj = new Date(year, month - 1, day);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (meetingDateObj.getTime() === today.getTime()) {
+        const now = new Date();
+        const [hours, minutes] = formData.startTime.split(':').map(Number);
+        const startObj = new Date();
+        startObj.setHours(hours, minutes, 0, 0);
+        if (startObj < now) {
+          setError('Meeting start time cannot be in the past.');
+          setIsSubmitting(false);
+          return;
+        }
+      }
     }
 
     try {
@@ -186,6 +230,16 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const getMinTime = () => {
+    if (!formData.date) return undefined;
+    const now = new Date();
+    const localTodayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    if (formData.date === localTodayStr) {
+      return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    }
+    return undefined;
   };
 
   return (
@@ -296,6 +350,7 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1"><Clock size={14} /> Start Time *</label>
               <input 
                 type="time" required name="startTime" value={formData.startTime} onChange={handleChange}
+                min={getMinTime()}
                 className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all" 
               />
             </div>
@@ -303,6 +358,7 @@ export default function MeetingForm({ initialData, mode = 'create' }: MeetingFor
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1"><Clock size={14} /> End Time *</label>
               <input 
                 type="time" required name="endTime" value={formData.endTime} onChange={handleChange}
+                min={formData.startTime || getMinTime()}
                 className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all" 
               />
             </div>

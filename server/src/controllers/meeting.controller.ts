@@ -25,13 +25,28 @@ export const createMeeting = async (req: Request, res: Response): Promise<void> 
       return;
     }
     const { date, startTime, endTime, venue, mode, participants } = req.body;
-    
+
     const meetingDateObj = new Date(date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (meetingDateObj < today) {
       res.status(400).json({ message: 'Meeting date cannot be in the past.' });
       return;
+    }
+
+    const [year, month, day] = typeof date === 'string' ? date.split('T')[0].split('-').map(Number) : [new Date(date).getFullYear(), new Date(date).getMonth() + 1, new Date(date).getDate()];
+    const todayNow = new Date();
+    const isToday = todayNow.getFullYear() === year && (todayNow.getMonth() + 1) === month && todayNow.getDate() === day;
+
+    if (isToday && startTime) {
+      const now = new Date();
+      const [hours, minutes] = startTime.split(':').map(Number);
+      const startObj = new Date();
+      startObj.setHours(hours, minutes, 0, 0);
+      if (startObj < now) {
+        res.status(400).json({ message: 'Meeting start time cannot be in the past.' });
+        return;
+      }
     }
 
     let finalParticipants = participants || [];
@@ -45,7 +60,10 @@ export const createMeeting = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const formattedParticipants = finalParticipants.map((id: string) => ({ user: id, status: 'Pending' }));
+    const formattedParticipants = finalParticipants.map((id: string) => ({ 
+      user: id, 
+      status: id.toString() === requestingUser.id.toString() ? 'Accepted' : 'Pending' 
+    }));
 
     // Venue Conflict Detection
     if ((mode === MeetingMode.Offline || mode === MeetingMode.Hybrid) && venue) {
@@ -101,12 +119,12 @@ export const createMeeting = async (req: Request, res: Response): Promise<void> 
     const populatedMeeting = await Meeting.findById(newMeeting._id)
       .populate('participants.user', 'email name notificationPreferences mutedMeetings')
       .populate('organizerId', 'email name');
-      
+
     if (!populatedMeeting) {
       res.status(500).json({ message: 'Failed to populate created meeting' });
       return;
     }
-    
+
     // Send email to participants
     populatedMeeting.participants.forEach((p: any) => {
       if (p.user && p.user.email) {
@@ -176,7 +194,7 @@ export const createMeeting = async (req: Request, res: Response): Promise<void> 
 
     // Create in-app notifications
     const notificationsToCreate: any[] = [];
-    
+
     // Add one for the organizer
     notificationsToCreate.push({
       recipient: requestingUser.id,
@@ -221,7 +239,7 @@ export const getMeetings = async (req: Request, res: Response): Promise<void> =>
   try {
     const { keyword, status, date, venue, momStatus } = req.query;
     const requestingUser = (req as any).user;
-    
+
     // Build an advanced search query object
     let query: any = {};
 
@@ -229,7 +247,7 @@ export const getMeetings = async (req: Request, res: Response): Promise<void> =>
     // TODO: This regex search is getting slow on production. We should migrate this to MongoDB Text Indexes in Q3.
     if (keyword) {
       const regexKeyword = new RegExp(keyword as string, 'i');
-      
+
       // 1. Find users matching the keyword
       const matchedUsers = await User.find({
         $or: [
@@ -294,7 +312,7 @@ export const getMeetings = async (req: Request, res: Response): Promise<void> =>
           { visibility: 'Public' }
         ]
       };
-      
+
       if (query.$or) {
         // If there's already an $or (from keyword search), wrap both in $and
         query = { $and: [{ $or: query.$or }, accessFilter] };
@@ -325,7 +343,7 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
     }
     const meetingId = req.params.id;
     const target = await Meeting.findById(meetingId);
-    
+
     if (!target) {
       res.status(404).json({ message: 'Meeting not found' });
       return;
@@ -344,14 +362,14 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
     // Enforce 24-hour deadline for editing meeting details
     // Only enforce this if we are updating details other than status
     const isOnlyStatusUpdate = Object.keys(req.body).length === 1 && req.body.status;
-    
+
     if (!isOnlyStatusUpdate) {
       const targetDate = new Date(target.date);
-      const meetingDateStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth()+1).padStart(2,'0')}-${String(targetDate.getDate()).padStart(2,'0')}`;
+      const meetingDateStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`;
       const startTimeStr = target.startTime || '00:00';
       const meetingStartDateTime = new Date(`${meetingDateStr}T${startTimeStr}:00`);
       const now = new Date();
-      
+
       if (target.meetingType === 'Emergency Meeting') {
         if (meetingStartDateTime.getTime() <= now.getTime()) {
           res.status(400).json({ message: 'Cannot edit the emergency meeting after it has started.' });
@@ -368,7 +386,7 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
 
     // Venue Conflict Detection for Updates
     const { date, startTime, endTime, venue, mode, participants } = req.body;
-    
+
     if (date) {
       const meetingDateObj = new Date(date);
       const today = new Date();
@@ -377,11 +395,29 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
         res.status(400).json({ message: 'Meeting date cannot be set in the past.' });
         return;
       }
+      
+      const checkStartTime = startTime || target.startTime;
+      if (checkStartTime) {
+        const [year, month, day] = typeof date === 'string' ? date.split('T')[0].split('-').map(Number) : [new Date(date).getFullYear(), new Date(date).getMonth() + 1, new Date(date).getDate()];
+        const todayNow = new Date();
+        const isToday = todayNow.getFullYear() === year && (todayNow.getMonth() + 1) === month && todayNow.getDate() === day;
+
+        if (isToday) {
+          const now = new Date();
+          const [hours, minutes] = checkStartTime.split(':').map(Number);
+          const startObj = new Date();
+          startObj.setHours(hours, minutes, 0, 0);
+          if (startObj < now) {
+            res.status(400).json({ message: 'Meeting start time cannot be set in the past.' });
+            return;
+          }
+        }
+      }
     }
 
     const updateData = { ...req.body };
     let finalParticipants = participants;
-    
+
     if (updateData.visibility === 'Public') {
       const allUsers = await User.find({ role: { $nin: [Role.Admin, Role.SuperAdmin] } }).select('_id');
       finalParticipants = allUsers.map(user => user._id.toString());
@@ -392,12 +428,16 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
         res.status(400).json({ message: 'At least 1 participant is required to edit a meeting.' });
         return;
       }
-      updateData.participants = finalParticipants.map((id: string) => ({ user: id, status: 'Pending' }));
+      updateData.participants = finalParticipants.map((id: string) => {
+        if (id.toString() === target.organizerId.toString()) return { user: id, status: 'Accepted' };
+        const existingParticipant = target.participants?.find((p: any) => (p.user?._id || p.user).toString() === id.toString());
+        return { user: id, status: existingParticipant ? existingParticipant.status : 'Pending' };
+      });
     }
-    
+
     const checkMode = mode || target.mode;
     const checkVenue = venue || target.venue;
-    
+
     if ((checkMode === MeetingMode.Offline || checkMode === MeetingMode.Hybrid) && checkVenue) {
       const conflict = await Meeting.findOne({
         _id: { $ne: meetingId }, // Exclude the current meeting from the check
@@ -416,14 +456,14 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
     }
 
     const updated = await Meeting.findByIdAndUpdate(meetingId, updateData, { new: true });
-    
+
     // Create in-app notifications
     if (updated) {
       const populatedMeeting = await Meeting.findById(updated._id)
         .populate('participants.user', 'email name notificationPreferences mutedMeetings')
         .populate('organizerId', 'email name');
       const notificationsToCreate: any[] = [];
-      
+
       // Add one for the organizer
       notificationsToCreate.push({
         recipient: requestingUser.id,
@@ -547,7 +587,7 @@ export const deleteMeeting = async (req: Request, res: Response): Promise<void> 
     // Create in-app notifications
     if (populatedTarget) {
       const notificationsToCreate: any[] = [];
-      
+
       // Add one for the organizer
       notificationsToCreate.push({
         recipient: requestingUser.id,
@@ -629,7 +669,7 @@ export const hardDeleteMeeting = async (req: Request, res: Response): Promise<vo
       res.status(401).json({ message: 'Unauthorized' });
       return;
     }
-    
+
     if (!isGlobalAdmin(requestingUser.role)) {
       res.status(403).json({ message: 'Only Admins or SuperAdmins can permanently delete meetings' });
       return;
@@ -672,8 +712,8 @@ export const markAttendance = async (req: Request, res: Response): Promise<void>
 
     const { attendanceList } = req.body; // Array of User IDs
     const updated = await Meeting.findByIdAndUpdate(
-      req.params.id, 
-      { attendance: attendanceList, status: MeetingStatus.Completed }, 
+      req.params.id,
+      { attendance: attendanceList, status: MeetingStatus.Completed },
       { new: true }
     );
 
@@ -687,7 +727,7 @@ export const rsvpMeeting = async (req: Request, res: Response): Promise<void> =>
   try {
     const requestingUser = (req as any).user;
     const { status, reason, nomineeId } = req.body; // 'Accepted' | 'Declined'
-    
+
     if (!['Accepted', 'Declined'].includes(status)) {
       res.status(400).json({ message: 'Invalid status' });
       return;
@@ -713,9 +753,9 @@ export const rsvpMeeting = async (req: Request, res: Response): Promise<void> =>
         meeting.participants[participantIndex].nomineeStatus = 'Pending';
       }
     }
-    
+
     await meeting.save();
-    
+
     res.json({ message: `RSVP updated to ${status}`, meeting });
   } catch (error) {
     res.status(500).json({ message: 'Server error while updating RSVP', error });

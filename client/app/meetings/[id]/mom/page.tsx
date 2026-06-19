@@ -14,7 +14,7 @@ import { MemberPresent, MomAgendaItem, MomApprovalStatus, MomBlock, MomBlockType
 
 const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings`;
 const inputClass = "w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-800 dark:bg-gray-950 dark:text-white";
-import { 
+import {
   logoPaths, buildingPaths, defaultCoverDetails, MeetingAgenda, deriveMembersFromParticipants, mergeCoverDetails, isCoverComplete, getOrganizerId, blockLabels, presetBlockTypes, createPresetBlocks, normalizeBlocks, normalizeAgendaItemForBlocks, normalizeAgendaItems, normalizeTableValue, compactTableValue, hasBlockDisplayValue, visibleBlocks, getBlockText, getBlockDisplayValue, mergeAgendaModuleItems, loadImage, exportMomPdf, exportMomWord, tableBlockToHtml, stripHtml, escapeHtml, formatDate, drawOfficialCover, drawPageHeader, ensureSpace, writeOfficialBlock, writeOfficialTable, addPageNumbers, readJsonResponse
 } from "@/utils/pdfExport";
 
@@ -202,8 +202,8 @@ export default function MomPage() {
   const currentUserApproval = approvalStatus.find((approval) => approval.userId === currentUserId);
 
   const isOrganizerOrAdmin = Boolean(currentUser && meeting && (
-    currentUser.role === "SuperAdmin" || 
-    currentUser.role === "Admin" || 
+    currentUser.role === "SuperAdmin" ||
+    currentUser.role === "Admin" ||
     getOrganizerId(meeting.organizerId) === currentUserId ||
     meeting.organizerId === currentUserId
   ));
@@ -251,7 +251,7 @@ export default function MomPage() {
       };
 
       const token = localStorage.getItem("accessToken");
-      const headers: HeadersInit = { 
+      const headers: HeadersInit = {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       };
@@ -385,6 +385,16 @@ export default function MomPage() {
       setNotice({ message: "This MoM is confirmed and locked. Transcript fill is no longer available.", type: "error" });
       return;
     }
+
+    // Prevent infinite loops or errors if transcript data is empty
+    if (!meeting?.aiSummary && (!meeting?.aiKeyPoints || meeting.aiKeyPoints.length === 0) && !meeting?.aiTranscript) {
+      setNotice({
+        message: "No transcript or summary data found. Please generate a meeting summary first before filling the remaining boxes.",
+        type: "error"
+      });
+      return;
+    }
+
     const saved = await saveMom("Draft");
     if (saved) {
       router.push(`/meetings/${params.id}/mom/ai`);
@@ -416,17 +426,17 @@ export default function MomPage() {
 
   const addAgendaComment = async (agendaId: string, text: string) => {
     if (agendaId.startsWith("local-")) {
-      setNotice({ 
-        message: canEdit 
-          ? "Please click 'Save Draft' first before adding comments to new agenda items." 
-          : "The organizer has not saved this MoM yet. Please wait until they save the draft.", 
-        type: "error" 
+      setNotice({
+        message: canEdit
+          ? "Please click 'Save Draft' first before adding comments to new agenda items."
+          : "The organizer has not saved this MoM yet. Please wait until they save the draft.",
+        type: "error"
       });
       return;
     }
     try {
       const token = localStorage.getItem("accessToken");
-      const headers: HeadersInit = { 
+      const headers: HeadersInit = {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       };
@@ -451,6 +461,28 @@ export default function MomPage() {
 
   if (isLoading) {
     return <main className="min-h-screen bg-gray-50 p-8 text-gray-700 dark:bg-gray-950 dark:text-gray-200">Loading MoM...</main>;
+  }
+
+  if (meeting && meeting.status !== 'Completed') {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-gray-50 p-6 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
+        <div className="max-w-md w-full text-center space-y-6 bg-white dark:bg-gray-900 p-8 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl">
+          <div className="mx-auto w-20 h-20 bg-amber-50 dark:bg-amber-900/20 rounded-full flex items-center justify-center text-amber-600 dark:text-amber-500 mb-6">
+            <Lock size={32} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Access Denied</h1>
+            <p className="mt-3 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+              Minutes of Meeting (MoM) can only be accessed after the meeting has been officially marked as <strong>Completed</strong>.
+            </p>
+          </div>
+          <button onClick={() => router.push("/meetings")} className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-semibold text-white hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20">
+            <ArrowLeft size={16} />
+            Return to Meetings
+          </button>
+        </div>
+      </main>
+    );
   }
 
   if (!meeting || !previewMeeting) {
@@ -539,7 +571,7 @@ export default function MomPage() {
                 If you compiled the Minutes of Meeting outside this platform, upload the final PDF or Word file here.
               </p>
             </div>
-            
+
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               {meeting.offlineMomFileUrl ? (
                 <>
@@ -784,7 +816,7 @@ export default function MomPage() {
                   <p className="text-sm text-gray-700 dark:text-gray-300">{remark.text}</p>
                 </div>
               ))}
-              
+
               {canAddRemark && (
                 <div className="mt-4 flex gap-2">
                   <input

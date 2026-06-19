@@ -514,7 +514,7 @@ export default function MeetingTable({
                                   Manage Agenda
                                 </Link>
                               )}
-                              {currentUser.role !== 'SuperAdmin' && (
+                              {currentUser.role !== 'SuperAdmin' && meeting.status === 'Completed' && (
                                 <>
                                   <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                                   <Link
@@ -553,13 +553,15 @@ export default function MeetingTable({
                                       Manage Agenda
                                     </Link>
                                   )}
-                                  <Link
-                                    href={`/meetings/${meeting._id}/mom`}
-                                    className="flex items-center gap-2 px-4 py-2 text-sm text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 w-full text-left"
-                                    onClick={() => setOpenDropdownId(null)}
-                                  >
-                                    <FileText size={14} /> Minutes of Meeting
-                                  </Link>
+                                  {meeting.status === 'Completed' && (
+                                    <Link
+                                      href={`/meetings/${meeting._id}/mom`}
+                                      className="flex items-center gap-2 px-4 py-2 text-sm text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 w-full text-left"
+                                      onClick={() => setOpenDropdownId(null)}
+                                    >
+                                      <FileText size={14} /> Minutes of Meeting
+                                    </Link>
+                                  )}
                                 </>
                               );
                             }
