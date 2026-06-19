@@ -362,8 +362,9 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
     // Enforce 24-hour deadline for editing meeting details
     // Only enforce this if we are updating details other than status
     const isOnlyStatusUpdate = Object.keys(req.body).length === 1 && req.body.status;
+    const isPostponing = req.body.status === 'Postponed';
 
-    if (!isOnlyStatusUpdate) {
+    if (!isOnlyStatusUpdate && !isPostponing) {
       const targetDate = new Date(target.date);
       const meetingDateStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`;
       const startTimeStr = target.startTime || '00:00';
@@ -429,9 +430,30 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
         return;
       }
       updateData.participants = finalParticipants.map((id: string) => {
-        if (id.toString() === target.organizerId.toString()) return { user: id, status: 'Accepted' };
-        const existingParticipant = target.participants?.find((p: any) => (p.user?._id || p.user).toString() === id.toString());
-        return { user: id, status: existingParticipant ? existingParticipant.status : 'Pending' };
+        const participantId = id.toString();
+        const isOrganizer = participantId === target.organizerId.toString();
+        const existingParticipant = target.participants?.find(
+          (participant: any) =>
+            (participant.user?._id || participant.user).toString() === participantId
+        );
+
+        return {
+          user: id,
+          status: isOrganizer
+            ? 'Accepted'
+            : isPostponing
+              ? 'Pending'
+              : existingParticipant?.status || 'Pending'
+        };
+      });
+    } else if (isPostponing) {
+      // If postponing, reset all existing participants to Pending so they can RSVP again
+      updateData.participants = target.participants.map((participant: any) => {
+        const participantId = participant.user?._id || participant.user;
+        return {
+          user: participantId,
+          status: participantId.toString() === target.organizerId.toString() ? 'Accepted' : 'Pending'
+        };
       });
     }
 
