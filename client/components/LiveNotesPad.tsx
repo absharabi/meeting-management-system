@@ -41,6 +41,11 @@ export default function LiveNotesPad({ meetingId, initialContent = '', currentUs
       setEditorText(incomingText);
     });
 
+    socketRef.current.on('meeting-locked', () => {
+      setIsConnected(false);
+      socketRef.current?.disconnect();
+    });
+
     return () => {
       if (socketRef.current) {
         socketRef.current.emit('leave-meeting-room', meetingId);

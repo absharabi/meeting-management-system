@@ -206,6 +206,10 @@ export default function MeetingTable({
   });
 
   const openAttendanceModal = (meeting: Meeting) => {
+    if (meeting.status === 'Cancelled') {
+      toast.error('Attendance is locked for cancelled meetings.');
+      return;
+    }
     setAttendanceModalMeeting(meeting);
     setOpenDropdownId(null);
     if (meeting.attendance) {
@@ -226,6 +230,11 @@ export default function MeetingTable({
 
   const submitAttendance = async () => {
     if (!attendanceModalMeeting) return;
+    if (attendanceModalMeeting.status === 'Cancelled') {
+      toast.error('Attendance is locked for cancelled meetings.');
+      setAttendanceModalMeeting(null);
+      return;
+    }
     setIsSubmittingAttendance(true);
     try {
       const token = localStorage.getItem('accessToken');
@@ -502,10 +511,12 @@ export default function MeetingTable({
                           {currentUser && (meeting.organizerId?._id === currentUser.id || meeting.organizerId?._id === currentUser._id || currentUser.role === 'SuperAdmin' || currentUser.role === 'Admin') && (
                             <>
                               <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                              <button onClick={() => openAttendanceModal(meeting)} className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 w-full text-left">
-                                Mark Attendance
-                              </button>
-                              {meeting.status !== 'Completed' && (
+                              {meeting.status !== 'Cancelled' && (
+                                <button onClick={() => openAttendanceModal(meeting)} className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 w-full text-left">
+                                  Mark Attendance
+                                </button>
+                              )}
+                              {meeting.status !== 'Completed' && meeting.status !== 'Cancelled' && (
                                 <Link
                                   href={`/meetings/${meeting._id}?view=agenda`}
                                   className="flex items-center gap-2 px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 w-full text-left"
@@ -544,7 +555,7 @@ export default function MeetingTable({
                               return (
                                 <>
                                   <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                                  {meeting.status !== 'Completed' && (
+                                  {meeting.status !== 'Completed' && meeting.status !== 'Cancelled' && (
                                     <Link
                                       href={`/meetings/${meeting._id}?view=agenda`}
                                       className="flex items-center gap-2 px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 w-full text-left"

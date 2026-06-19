@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import ActionItem from '../models/ActionItem';
 import Meeting from '../models/Meeting';
 import mongoose from 'mongoose';
+import { isMeetingCancelled, rejectCancelledMeeting } from '../utils/meetingState';
+import { hasAcceptedParticipantAccess } from '../utils/meetingAccess';
 
 export const createActionItem = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -19,6 +21,7 @@ export const createActionItem = async (req: Request, res: Response): Promise<voi
       res.status(404).json({ message: 'Meeting not found' });
       return;
     }
+    if (rejectCancelledMeeting(res, meeting)) return;
 
     if (
       meeting.organizerId.toString() !== requestingUser.id &&
@@ -48,10 +51,10 @@ export const getMyActionItems = async (req: Request, res: Response): Promise<voi
     const requestingUser = (req as any).user;
     
     const items = await ActionItem.find({ assigneeId: requestingUser.id })
-      .populate('meetingId', 'title date')
+      .populate('meetingId', 'title date status')
       .sort({ dueDate: 1 });
       
-    res.status(200).json(items);
+    res.status(200).json(items.filter((item: any) => !isMeetingCancelled(item.meetingId)));
   } catch (error) {
     res.status(500).json({ message: 'Error fetching action items', error });
   }
@@ -60,6 +63,13 @@ export const getMyActionItems = async (req: Request, res: Response): Promise<voi
 export const getMeetingActionItems = async (req: Request, res: Response): Promise<void> => {
   try {
     const { meetingId } = req.params;
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      res.status(404).json({ message: 'Meeting not found' });
+      return;
+    }
+    if (rejectCancelledMeeting(res, meeting)) return;
+
     const items = await ActionItem.find({ meetingId })
       .populate('assigneeId', 'name email')
       .sort({ createdAt: -1 });
@@ -83,6 +93,7 @@ export const updateActionItemStatus = async (req: Request, res: Response): Promi
     }
 
     const meeting = existingItem.meetingId as any;
+    if (rejectCancelledMeeting(res, meeting)) return;
 
     if (
       existingItem.assigneeId.toString() !== requestingUser.id &&
@@ -91,6 +102,16 @@ export const updateActionItemStatus = async (req: Request, res: Response): Promi
       requestingUser.role !== 'SuperAdmin'
     ) {
       res.status(403).json({ message: 'You do not have permission to update this action item' });
+      return;
+    }
+    if (
+      existingItem.assigneeId.toString() === requestingUser.id &&
+      meeting.organizerId.toString() !== requestingUser.id &&
+      requestingUser.role !== 'Admin' &&
+      requestingUser.role !== 'SuperAdmin' &&
+      !hasAcceptedParticipantAccess(meeting, requestingUser.id)
+    ) {
+      res.status(403).json({ message: 'Please accept the meeting invitation before updating assigned action items.' });
       return;
     }
 
@@ -118,6 +139,7 @@ export const deleteActionItem = async (req: Request, res: Response): Promise<voi
     }
 
     const meeting = existingItem.meetingId as any;
+    if (rejectCancelledMeeting(res, meeting)) return;
 
     if (
       meeting.organizerId.toString() !== requestingUser.id &&

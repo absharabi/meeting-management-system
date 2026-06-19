@@ -9,6 +9,7 @@ import Agenda from '../models/Agenda';
 import { protect } from '../middleware/auth.middleware';
 import { summarizeTranscript } from '../ai/summarizer';
 import { generateMomPdf } from '../utils/generateMomPdf';
+import { rejectCancelledMeeting } from '../utils/meetingState';
 
 const router = Router();
 const execAsync = promisify(exec);
@@ -205,6 +206,7 @@ router.post('/:id/summary', upload.single('meetingFile'), async (req: Request, r
       res.status(404).json({ message: 'Meeting not found.' });
       return;
     }
+    if (rejectCancelledMeeting(res, meeting)) return;
     if (meeting.momStatus === MomStatus.Confirmed) {
       res.status(423).json({ message: 'This MoM is confirmed and can no longer be changed.' });
       return;
@@ -266,6 +268,7 @@ router.post('/:id/mom-draft', async (req: Request, res: Response): Promise<void>
       res.status(404).json({ message: 'Meeting not found.' });
       return;
     }
+    if (rejectCancelledMeeting(res, meeting)) return;
 
     const requestingUser = (req as any).user;
     if (
@@ -387,6 +390,7 @@ router.get('/:id/ai-mom-pdf', async (req: Request, res: Response): Promise<void>
       res.status(404).json({ message: 'Meeting not found.' });
       return;
     }
+    if (rejectCancelledMeeting(res, meeting)) return;
 
     if (!meeting.agendaItems?.length) {
       res.status(400).json({ message: 'Approve the draft before exporting MoM PDF.' });

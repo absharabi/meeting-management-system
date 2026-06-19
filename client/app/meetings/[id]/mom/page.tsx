@@ -209,11 +209,12 @@ export default function MomPage() {
   ));
   const canForceConfirm = currentUser?.role === "SuperAdmin" || currentUser?.role === "Admin";
   const canEdit = isOrganizerOrAdmin && !isConfirmed;
-  const isParticipant = Boolean(meeting?.participants?.some(p => {
+  const currentParticipantRecord = meeting?.participants?.find(p => {
     const pId = typeof p.user === 'string' ? p.user : p.user?._id || p.user?.id;
     return pId === currentUserId;
-  }));
-  const canAddRemark = !isConfirmed && (isOrganizerOrAdmin || isParticipant);
+  });
+  const hasAcceptedMeeting = Boolean(isOrganizerOrAdmin || currentParticipantRecord?.status === 'Accepted');
+  const canAddRemark = !isConfirmed && hasAcceptedMeeting;
 
   const previewMeeting = useMemo<MomMeeting | null>(() => {
     if (!meeting) return null;
@@ -673,7 +674,7 @@ export default function MomPage() {
             <button
               type="button"
               onClick={approveMom}
-              disabled={isConfirmed || !currentUserId || currentUserApproval?.approved}
+              disabled={isConfirmed || !currentUserId || currentUserApproval?.approved || !hasAcceptedMeeting}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-500/20 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <CheckCircle2 size={16} />
@@ -786,8 +787,8 @@ export default function MomPage() {
                   onChange={(nextItem) => updateAgendaItem(index, nextItem)}
                   onRemove={() => setAgendaItems((current) => current.filter((_, itemIndex) => itemIndex !== index))}
                   disabled={!canEdit}
-                  onAddComment={addAgendaComment}
-                  currentUserId={currentUserId}
+                  onAddComment={canAddRemark ? addAgendaComment : undefined}
+                  currentUserId={canAddRemark ? currentUserId : undefined}
                   isConfirmed={isConfirmed}
                   isOrganizerOrAdmin={isOrganizerOrAdmin}
                 />

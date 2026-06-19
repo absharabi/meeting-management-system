@@ -4,6 +4,7 @@ import Meeting, { MeetingMode, MeetingStatus } from '../models/Meeting';
 import User, { Role } from '../models/User';
 import Agenda from '../models/Agenda';
 import ActionItem from '../models/ActionItem';
+import { rejectCancelledMeeting } from '../utils/meetingState';
 import Notification from '../models/Notification';
 import { sendEmail } from '../utils/email';
 import { emitNotification } from '../services/socketService';
@@ -349,6 +350,8 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    if (rejectCancelledMeeting(res, target)) return;
+
     if (target.status === MeetingStatus.Completed) {
       res.status(400).json({ message: 'Cannot edit a meeting that is already completed.' });
       return;
@@ -387,6 +390,23 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
 
     // Venue Conflict Detection for Updates
     const { date, startTime, endTime, venue, mode, participants } = req.body;
+
+    if (isPostponing) {
+      if (!date || !startTime || !endTime) {
+        res.status(400).json({ message: 'A new date, start time, and end time are required when postponing a meeting.' });
+        return;
+      }
+      if (endTime <= startTime) {
+        res.status(400).json({ message: 'Meeting end time must be later than the start time.' });
+        return;
+      }
+
+      const postponedMode = mode || target.mode;
+      if ((postponedMode === MeetingMode.Offline || postponedMode === MeetingMode.Hybrid) && !venue?.trim()) {
+        res.status(400).json({ message: 'A new venue is required when postponing an offline or hybrid meeting.' });
+        return;
+      }
+    }
 
     if (date) {
       const meetingDateObj = new Date(date);
@@ -443,7 +463,10 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
             ? 'Accepted'
             : isPostponing
               ? 'Pending'
-              : existingParticipant?.status || 'Pending'
+              : existingParticipant?.status || 'Pending',
+          reason: isPostponing ? '' : existingParticipant?.reason || '',
+          nominee: isPostponing ? null : existingParticipant?.nominee || null,
+          nomineeStatus: isPostponing ? 'None' : existingParticipant?.nomineeStatus || 'None'
         };
       });
     } else if (isPostponing) {
@@ -452,7 +475,10 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
         const participantId = participant.user?._id || participant.user;
         return {
           user: participantId,
-          status: participantId.toString() === target.organizerId.toString() ? 'Accepted' : 'Pending'
+          status: participantId.toString() === target.organizerId.toString() ? 'Accepted' : 'Pending',
+          reason: '',
+          nominee: null,
+          nomineeStatus: 'None'
         };
       });
     }
@@ -502,15 +528,15 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
           if (userDoc.email) {
             sendEmail(
               userDoc.email,
-              `Meeting Updated: ${updated.title}`,
+              `${isPostponing ? 'Meeting Postponed - RSVP Required' : 'Meeting Updated'}: ${updated.title}`,
               `<div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0f172a; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
                 <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 40px 20px; text-align: center;">
                   <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">Meeting Updated</h1>
-                  <p style="color: #fef3c7; font-size: 16px; margin: 10px 0 0 0; opacity: 0.9;">Details have been changed.</p>
+                  <p style="color: #fef3c7; font-size: 16px; margin: 10px 0 0 0; opacity: 0.9;">${isPostponing ? 'Please accept or decline again.' : 'Details have been changed.'}</p>
                 </div>
                 <div style="padding: 30px;">
                   <p style="color: #f8fafc; font-size: 16px; line-height: 1.6; margin-top: 0;">Hi <strong>${userDoc.name}</strong>,</p>
-                  <p style="color: #cbd5e1; font-size: 16px; line-height: 1.6;">The organizer has updated the details for this meeting. Please review the new details below.</p>
+                  <p style="color: #cbd5e1; font-size: 16px; line-height: 1.6;">${isPostponing ? 'The organizer has postponed this meeting. Your previous RSVP has been reset, so please accept or decline again after reviewing the new schedule.' : 'The organizer has updated the details for this meeting. Please review the new details below.'}</p>
                   <div style="background-color: #1e293b; border-left: 4px solid #f59e0b; padding: 20px; border-radius: 8px; margin: 30px 0;">
                     <h3 style="color: #ffffff; font-size: 20px; margin: 0 0 15px 0;">${updated.title}</h3>
                     <table width="100%" cellpadding="0" cellspacing="0" style="color: #94a3b8; font-size: 15px; line-height: 1.6;">
@@ -530,7 +556,7 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
                   </div>
                   <div style="text-align: center; margin: 40px 0 20px 0;">
                     <a href="${process.env.FRONTEND_URL}/meetings/${updated._id}" style="display: inline-block; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff; text-decoration: none; font-weight: 600; font-size: 16px; padding: 14px 32px; border-radius: 30px;">
-                      View Updated Meeting
+                      ${isPostponing ? 'Accept or Decline Again' : 'View Updated Meeting'}
                     </a>
                   </div>
                 </div>
@@ -559,8 +585,8 @@ export const updateMeeting = async (req: Request, res: Response): Promise<void> 
 
           notificationsToCreate.push({
             recipient: userDoc._id,
-            type: 'Meeting Updated',
-            message: `Meeting details updated: ${updated.title}`,
+            type: isPostponing ? 'Meeting Postponed' : 'Meeting Updated',
+            message: isPostponing ? `Meeting postponed. Please accept or decline again: ${updated.title}` : `Meeting details updated: ${updated.title}`,
             relatedMeeting: updated._id,
             actionUrl: `/meetings/${updated._id}`
           });
@@ -592,6 +618,8 @@ export const deleteMeeting = async (req: Request, res: Response): Promise<void> 
       res.status(404).json({ message: 'Meeting not found' });
       return;
     }
+
+    if (rejectCancelledMeeting(res, target)) return;
 
     if (!isGlobalAdmin(requestingUser.role) && target.organizerId.toString() !== requestingUser.id) {
       res.status(403).json({ message: 'You do not have permission to delete this meeting' });
@@ -727,6 +755,8 @@ export const markAttendance = async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    if (rejectCancelledMeeting(res, target)) return;
+
     if (!isGlobalAdmin(requestingUser.role) && target.organizerId.toString() !== requestingUser.id) {
       res.status(403).json({ message: 'Only the meeting organizer or an admin can mark attendance' });
       return;
@@ -760,6 +790,8 @@ export const rsvpMeeting = async (req: Request, res: Response): Promise<void> =>
       res.status(404).json({ message: 'Meeting not found' });
       return;
     }
+
+    if (rejectCancelledMeeting(res, meeting)) return;
 
     const participantIndex = meeting.participants.findIndex(p => p.user.toString() === requestingUser.id);
     if (participantIndex === -1) {
@@ -795,6 +827,8 @@ export const approveNominee = async (req: Request, res: Response): Promise<void>
       res.status(404).json({ message: 'Meeting not found' });
       return;
     }
+
+    if (rejectCancelledMeeting(res, meeting)) return;
 
     if (!isGlobalAdmin(requestingUser.role) && meeting.organizerId._id.toString() !== requestingUser.id) {
       res.status(403).json({ message: 'Only the organizer can approve nominees' });
@@ -874,6 +908,8 @@ export const rejectNominee = async (req: Request, res: Response): Promise<void> 
       res.status(404).json({ message: 'Meeting not found' });
       return;
     }
+
+    if (rejectCancelledMeeting(res, meeting)) return;
 
     if (!isGlobalAdmin(requestingUser.role) && meeting.organizerId._id.toString() !== requestingUser.id) {
       res.status(403).json({ message: 'Only the organizer can reject nominees' });

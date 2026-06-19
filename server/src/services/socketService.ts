@@ -1,5 +1,7 @@
 import { Server as SocketIOServer } from 'socket.io';
 import { Server as HttpServer } from 'http';
+import Meeting from '../models/Meeting';
+import { isMeetingCancelled } from '../utils/meetingState';
 
 let io: SocketIOServer;
 
@@ -39,7 +41,12 @@ export const initSocketService = (server: HttpServer) => {
     // --- Live Collaborative Notes ---
     
     // User joins a specific meeting's live notes room
-    socket.on('join-meeting-room', (meetingId: string) => {
+    socket.on('join-meeting-room', async (meetingId: string) => {
+      const meeting = await Meeting.findById(meetingId).select('status');
+      if (!meeting || isMeetingCancelled(meeting)) {
+        socket.emit('meeting-locked', 'This meeting is cancelled. Live notes are locked.');
+        return;
+      }
       socket.join(`meeting_${meetingId}`);
       console.log(`Socket ${socket.id} joined room: meeting_${meetingId}`);
     });
@@ -51,7 +58,12 @@ export const initSocketService = (server: HttpServer) => {
     });
 
     // User broadcasts a text update to everyone else in the room
-    socket.on('note-update', ({ meetingId, content }: { meetingId: string, content: string }) => {
+    socket.on('note-update', async ({ meetingId, content }: { meetingId: string, content: string }) => {
+      const meeting = await Meeting.findById(meetingId).select('status');
+      if (!meeting || isMeetingCancelled(meeting)) {
+        socket.emit('meeting-locked', 'This meeting is cancelled. Live notes are locked.');
+        return;
+      }
       // broadcast to everyone in the room EXCEPT the sender
       socket.to(`meeting_${meetingId}`).emit('note-updated', content);
     });

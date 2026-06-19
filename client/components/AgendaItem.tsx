@@ -30,6 +30,7 @@ interface AgendaItemProps {
   index: number;
   isOrganizerOrAdmin: boolean;
   currentUserId: string;
+  canUploadDocument: boolean;
   meetingId: string;
   onApprove: (id: string) => void;
   onDelete: (id: string) => void;
@@ -63,6 +64,7 @@ export default function AgendaItem({
   index,
   isOrganizerOrAdmin,
   currentUserId,
+  canUploadDocument,
   meetingId,
   onApprove,
   onDelete,
@@ -204,7 +206,7 @@ export default function AgendaItem({
           </div>
 
           <div
-            className="text-gray-500 dark:text-gray-400 text-sm mt-1 prose prose-sm dark:prose-invert"
+            className="rich-text-content min-w-0 max-w-full overflow-hidden text-gray-500 dark:text-gray-400 text-sm mt-1 prose prose-sm dark:prose-invert"
             dangerouslySetInnerHTML={{ __html: agenda.description || '' }}
           />
 
@@ -253,6 +255,7 @@ export default function AgendaItem({
         {docsOpen && (
           <div className="px-4 pb-4 space-y-3">
             {/* Upload button — available to everyone */}
+            {canUploadDocument ? (
             <div className="flex items-center gap-2">
               <label
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors border ${
@@ -288,6 +291,11 @@ export default function AgendaItem({
                 PDF, Word, Excel, Images · max 10 MB
               </span>
             </div>
+            ) : (
+              <p className="text-xs text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/40 rounded-lg px-3 py-2">
+                Accept this meeting invitation before uploading supporting documents.
+              </p>
+            )}
 
             {/* Organizer sees a label showing all vs own */}
             {isOrganizerOrAdmin && allDocuments.length > 0 && (

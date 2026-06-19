@@ -36,6 +36,14 @@ export default function MeetingDetailsPage() {
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [isDeclineModalOpen, setIsDeclineModalOpen] = useState(false);
   const [isParticipantListModalOpen, setIsParticipantListModalOpen] = useState(false);
+  const [isPostponeModalOpen, setIsPostponeModalOpen] = useState(false);
+  const [isPostponing, setIsPostponing] = useState(false);
+  const [postponeSchedule, setPostponeSchedule] = useState({
+    date: '',
+    startTime: '',
+    endTime: '',
+    venue: ''
+  });
   const [declineReason, setDeclineReason] = useState('');
   const [selectedNominee, setSelectedNominee] = useState('');
   const [allUsers, setAllUsers] = useState<any[]>([]);
@@ -53,7 +61,7 @@ export default function MeetingDetailsPage() {
       const foundMeeting = meetings.find((m: any) => m._id === meetingId);
       setMeeting(foundMeeting);
 
-      if (foundMeeting) {
+      if (foundMeeting && foundMeeting.status !== 'Cancelled') {
         const aRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/agendas`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
@@ -71,12 +79,17 @@ export default function MeetingDetailsPage() {
       }
 
       // Fetch action items for this meeting
-      const actionRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/action-items/meeting/${meetingId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (actionRes.ok) {
-        const actionData = await actionRes.json();
-        setActionItems(actionData);
+      if (foundMeeting?.status !== 'Cancelled') {
+        const actionRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/action-items/meeting/${meetingId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (actionRes.ok) {
+          const actionData = await actionRes.json();
+          setActionItems(actionData);
+        }
+      } else {
+        setAgendas([]);
+        setActionItems([]);
       }
 
       // Fetch all users for nominee dropdown
@@ -96,6 +109,70 @@ export default function MeetingDetailsPage() {
   useEffect(() => {
     fetchMeetingAndAgendas();
   }, [meetingId]);
+
+  const openPostponeModal = () => {
+    setPostponeSchedule({
+      date: meeting?.date ? String(meeting.date).split('T')[0] : '',
+      startTime: meeting?.startTime || '',
+      endTime: meeting?.endTime || '',
+      venue: meeting?.venue || ''
+    });
+    setIsPostponeModalOpen(true);
+  };
+
+  const handlePostponeMeeting = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    const { date, startTime, endTime, venue } = postponeSchedule;
+    if (!date || !startTime || !endTime) {
+      toast.error('New date, start time, and end time are required.');
+      return;
+    }
+    if (endTime <= startTime) {
+      toast.error('End time must be later than start time.');
+      return;
+    }
+    if ((meeting.mode === 'Offline' || meeting.mode === 'Hybrid') && !venue.trim()) {
+      toast.error('Venue is required for this meeting.');
+      return;
+    }
+
+    const newStart = new Date(`${date}T${startTime}:00`);
+    if (newStart.getTime() <= Date.now()) {
+      toast.error('The postponed meeting must be scheduled in the future.');
+      return;
+    }
+
+    setIsPostponing(true);
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          status: 'Postponed',
+          date,
+          startTime,
+          endTime,
+          venue: venue.trim()
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.message || 'Failed to postpone meeting');
+        return;
+      }
+
+      toast.success('Meeting postponed with the new schedule');
+      setIsPostponeModalOpen(false);
+      await fetchMeetingAndAgendas();
+    } catch (error) {
+      console.error('Failed to postpone meeting', error);
+      toast.error('Network error');
+    } finally {
+      setIsPostponing(false);
+    }
+  };
 
   const handleRsvp = async (status: 'Accepted' | 'Declined', reason = '', nomineeId = '') => {
     try {
@@ -400,7 +477,10 @@ export default function MeetingDetailsPage() {
   );
 
   const isNominee = meeting.participants?.some((p: any) => p.nominee === currentUserId && p.nomineeStatus === 'Approved');
-  const actualViewMode = isNominee ? 'details' : viewMode;
+  const isCancelled = meeting.status === 'Cancelled';
+  const actualViewMode = isCancelled || isNominee ? 'details' : viewMode;
+  const myParticipantRecord = meeting.participants?.find((p: any) => (p.user?._id || p.user) === currentUserId);
+  const hasAcceptedMeeting = Boolean(isOrganizerOrAdmin || myParticipantRecord?.status === 'Accepted');
 
   const isAdminOrSuperAdmin = currentUser && (
     currentUser.role === 'SuperAdmin' || 
@@ -408,7 +488,7 @@ export default function MeetingDetailsPage() {
   );
 
   const isAgendaProposalAllowed = (() => {
-    if (!meeting) return false;
+    if (!meeting || isCancelled) return false;
     const meetingDate = new Date(meeting.date);
     const meetingDateStr = `${meetingDate.getFullYear()}-${String(meetingDate.getMonth()+1).padStart(2,'0')}-${String(meetingDate.getDate()).padStart(2,'0')}`;
     const startTimeStr = meeting.startTime || '00:00';
@@ -473,7 +553,7 @@ export default function MeetingDetailsPage() {
             </div>
 
             {meeting.description ? (
-              <div className="text-gray-500 dark:text-gray-400 mt-2 max-w-2xl prose prose-sm dark:prose-invert" dangerouslySetInnerHTML={{ __html: meeting.description }} />
+              <div className="rich-text-content min-w-0 max-w-2xl overflow-hidden text-gray-500 dark:text-gray-400 mt-2 prose prose-sm dark:prose-invert" dangerouslySetInnerHTML={{ __html: meeting.description }} />
             ) : (
               <p className="text-gray-500 dark:text-gray-400 mt-2 max-w-2xl">No description provided.</p>
             )}
@@ -516,27 +596,7 @@ export default function MeetingDetailsPage() {
                   <Trash2 size={16} /> Cancel Meeting
                 </button>
                 <button 
-                  onClick={async () => {
-                    if(!confirm('Mark this meeting as postponed?')) return;
-                    try {
-                      const token = localStorage.getItem('accessToken');
-                      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                        body: JSON.stringify({ status: 'Postponed' })
-                      });
-                      if (res.ok) {
-                        toast.success('Meeting postponed successfully');
-                        fetchMeetingAndAgendas();
-                      } else {
-                        const errData = await res.json();
-                        toast.error(errData.message || 'Failed to postpone meeting');
-                      }
-                    } catch (e) {
-                      console.error('Failed to postpone meeting', e);
-                      toast.error('Network error');
-                    }
-                  }}
+                  onClick={openPostponeModal}
                   className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-600 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/40 rounded-lg text-sm font-medium transition-colors"
                 >
                   <ClockIcon size={16} /> Postpone Meeting
@@ -658,10 +718,15 @@ export default function MeetingDetailsPage() {
         </div>
       </div>
 
+      {isCancelled && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
+          <h2 className="font-bold">Cancelled meeting</h2>
+        </div>
+      )}
+
       {/* RSVP Section for Pending Participants */}
-      {actualViewMode === 'details' && meeting.status === 'Scheduled' && (
+      {actualViewMode === 'details' && (meeting.status === 'Scheduled' || meeting.status === 'Postponed') && (
         (() => {
-          const myParticipantRecord = meeting.participants?.find((p: any) => (p.user?._id || p.user) === currentUserId);
           if (myParticipantRecord && myParticipantRecord.status === 'Pending') {
             return (
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800/50 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
@@ -732,6 +797,83 @@ export default function MeetingDetailsPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Postpone Meeting Modal */}
+      {isPostponeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <form onSubmit={handlePostponeMeeting} className="w-full max-w-lg overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900">
+            <div className="flex items-start justify-between border-b border-gray-100 p-6 dark:border-gray-800">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Postpone Meeting</h3>
+                <p className="mt-1 text-sm text-gray-500">Enter the new meeting schedule.</p>
+              </div>
+              <button type="button" onClick={() => setIsPostponeModalOpen(false)} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4 p-6">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">New Date *</label>
+                <input
+                  required
+                  type="date"
+                  min={new Date().toLocaleDateString('en-CA')}
+                  value={postponeSchedule.date}
+                  onChange={(event) => setPostponeSchedule((current) => ({ ...current, date: event.target.value }))}
+                  className="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:border-purple-500 focus:ring-2 focus:ring-purple-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Start Time *</label>
+                  <input
+                    required
+                    type="time"
+                    value={postponeSchedule.startTime}
+                    onChange={(event) => setPostponeSchedule((current) => ({ ...current, startTime: event.target.value }))}
+                    className="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:border-purple-500 focus:ring-2 focus:ring-purple-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">End Time *</label>
+                  <input
+                    required
+                    type="time"
+                    value={postponeSchedule.endTime}
+                    onChange={(event) => setPostponeSchedule((current) => ({ ...current, endTime: event.target.value }))}
+                    className="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:border-purple-500 focus:ring-2 focus:ring-purple-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  New Venue {(meeting.mode === 'Offline' || meeting.mode === 'Hybrid') && '*'}
+                </label>
+                <input
+                  required={meeting.mode === 'Offline' || meeting.mode === 'Hybrid'}
+                  type="text"
+                  value={postponeSchedule.venue}
+                  onChange={(event) => setPostponeSchedule((current) => ({ ...current, venue: event.target.value }))}
+                  placeholder="Enter the new venue"
+                  className="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:border-purple-500 focus:ring-2 focus:ring-purple-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-gray-100 bg-gray-50 p-6 dark:border-gray-800 dark:bg-gray-900">
+              <button type="button" onClick={() => setIsPostponeModalOpen(false)} disabled={isPostponing} className="rounded-xl border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                Cancel
+              </button>
+              <button type="submit" disabled={isPostponing} className="rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50">
+                {isPostponing ? 'Postponing...' : 'Confirm Postponement'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
@@ -881,7 +1023,7 @@ export default function MeetingDetailsPage() {
       )}
 
       {/* Agenda Section */}
-      {actualViewMode === 'agenda' && (
+      {!isCancelled && actualViewMode === 'agenda' && (
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm overflow-hidden">
         <div className="p-6 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 flex justify-between items-center">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -917,6 +1059,7 @@ export default function MeetingDetailsPage() {
                       index={index}
                       isOrganizerOrAdmin={isOrganizerOrAdmin}
                       currentUserId={currentUserId || ''}
+                      canUploadDocument={hasAcceptedMeeting}
                       meetingId={meetingId}
                       onApprove={handleApprove}
                       onDelete={handleDeleteAgenda}
@@ -932,7 +1075,11 @@ export default function MeetingDetailsPage() {
           {/* Add Agenda Form */}
           <div className="bg-gray-50 dark:bg-gray-800/50 p-5 rounded-xl border border-gray-200 dark:border-gray-700 h-fit">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2"><Plus size={18} /> Propose Agenda Item</h3>
-            {!isAgendaProposalAllowed ? (
+            {!hasAcceptedMeeting ? (
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded-lg border border-blue-200 dark:border-blue-800 text-sm">
+                Please accept this meeting invitation before proposing agenda items or uploading supporting documents.
+              </div>
+            ) : !isAgendaProposalAllowed ? (
               <div className="p-4 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 rounded-lg border border-amber-200 dark:border-amber-800 text-sm">
                 Agenda items can only be proposed up to 24 hours before the meeting starts.
               </div>
@@ -1014,7 +1161,7 @@ export default function MeetingDetailsPage() {
       )}
 
       {/* Offline Report Section */}
-      {(actualViewMode === 'details' || actualViewMode === 'mom' || isNominee) && (meeting.mode === 'Offline' || meeting.offlineReportFileUrl) && (
+      {!isCancelled && (actualViewMode === 'details' || actualViewMode === 'mom' || isNominee) && (meeting.mode === 'Offline' || meeting.offlineReportFileUrl) && (
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm p-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -1063,11 +1210,17 @@ export default function MeetingDetailsPage() {
       )}
 
       {/* Live Notes & Action Items Section */}
-      {actualViewMode === 'details' && !isNominee && (
+      {!isCancelled && actualViewMode === 'details' && !isNominee && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[450px]">
         {/* Live Notes Section */}
         <div className="lg:col-span-2 h-full">
-          <LiveNotesPad meetingId={meetingId} currentUser={currentUser} />
+          {hasAcceptedMeeting ? (
+            <LiveNotesPad meetingId={meetingId} currentUser={currentUser} />
+          ) : (
+            <div className="bg-white dark:bg-gray-900 border border-blue-100 dark:border-blue-900/40 rounded-xl h-full flex items-center justify-center p-6 text-center text-blue-700 dark:text-blue-300">
+              Please accept this meeting invitation before editing live notes.
+            </div>
+          )}
         </div>
 
         {/* Action Items Assigner & List */}
@@ -1128,7 +1281,7 @@ export default function MeetingDetailsPage() {
       )}
 
       {/* Feedback Section */}
-      {viewMode === 'details' && meeting.status === 'Completed' && (
+      {viewMode === 'details' && meeting.status === 'Completed' && hasAcceptedMeeting && (
         <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-6 text-center">
           <h3 className="text-xl font-bold text-amber-800 dark:text-amber-400 mb-2">Rate This Meeting</h3>
           <p className="text-amber-700 dark:text-amber-500 mb-4 text-sm">How efficient was this meeting? Your feedback helps us improve.</p>

@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
 import Meeting, { MomStatus } from '../models/Meeting';
 import { generateMomPdf } from '../utils/generateMomPdf';
+import { rejectCancelledMeeting } from '../utils/meetingState';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { sendEmail } from '../utils/email';
+import { canManageMeeting, hasAcceptedParticipantAccess } from '../utils/meetingAccess';
 
 export const populateMeeting = (id: string) => Meeting.findById(id)
   .populate('organizerId', 'name email department')
@@ -269,6 +271,7 @@ export const getMom = async (req: Request, res: Response): Promise<void> => {
       res.status(404).json({ message: 'Meeting not found' });
       return;
     }
+    if (rejectCancelledMeeting(res, meeting)) return;
 
     const authReq = req as AuthRequest;
     const currentUserId = authReq.user?.id;
@@ -311,6 +314,7 @@ export const saveMom = async (req: Request, res: Response): Promise<void> => {
       res.status(404).json({ message: 'Meeting not found' });
       return;
     }
+    if (rejectCancelledMeeting(res, target)) return;
 
     const requestingUser = (req as any).user;
     if (
@@ -413,6 +417,7 @@ export const patchMom = async (req: Request, res: Response): Promise<void> => {
       res.status(404).json({ message: 'Meeting not found' });
       return;
     }
+    if (rejectCancelledMeeting(res, target)) return;
 
     const requestingUser = (req as any).user;
     if (
@@ -489,6 +494,7 @@ export const approveMom = async (req: Request, res: Response): Promise<void> => 
       res.status(404).json({ message: 'Meeting not found' });
       return;
     }
+    if (rejectCancelledMeeting(res, target)) return;
     if (target.momStatus === MomStatus.Confirmed) {
       res.status(423).json({ message: 'This MoM is already confirmed and locked.' });
       return;
@@ -497,6 +503,10 @@ export const approveMom = async (req: Request, res: Response): Promise<void> => 
     const reviewerIds = new Set(getMomReviewers(target).map((reviewer) => reviewer.userId));
     if (!reviewerIds.has(currentUserId)) {
       res.status(403).json({ message: 'Only meeting members can approve this MoM.' });
+      return;
+    }
+    if (!canManageMeeting(target, authReq.user) && !hasAcceptedParticipantAccess(target, currentUserId)) {
+      res.status(403).json({ message: 'Please accept the meeting invitation before approving the MoM.' });
       return;
     }
 
@@ -520,6 +530,7 @@ export const exportMom = async (req: Request, res: Response): Promise<void> => {
       res.status(404).json({ message: 'Meeting not found' });
       return;
     }
+    if (rejectCancelledMeeting(res, meeting)) return;
     if (meeting.momStatus !== MomStatus.Confirmed) {
       res.status(400).json({ message: 'Confirm the MoM before exporting.' });
       return;
@@ -561,6 +572,7 @@ export const addMomAgendaComment = async (req: Request, res: Response): Promise<
       res.status(404).json({ message: 'Meeting not found' });
       return;
     }
+    if (rejectCancelledMeeting(res, target)) return;
 
     if (target.momStatus === MomStatus.Confirmed) {
       res.status(423).json({ message: 'This MoM is confirmed and locked. No new comments can be added.' });
@@ -572,6 +584,10 @@ export const addMomAgendaComment = async (req: Request, res: Response): Promise<
 
     if (!reviewer) {
       res.status(403).json({ message: 'Only meeting members can add comments to this MoM.' });
+      return;
+    }
+    if (!canManageMeeting(target, authReq.user) && !hasAcceptedParticipantAccess(target, currentUserId)) {
+      res.status(403).json({ message: 'Please accept the meeting invitation before adding MoM comments.' });
       return;
     }
 
@@ -624,6 +640,7 @@ export const addMomGeneralRemark = async (req: Request, res: Response): Promise<
       res.status(404).json({ message: 'Meeting not found' });
       return;
     }
+    if (rejectCancelledMeeting(res, target)) return;
 
     if (target.momStatus === MomStatus.Confirmed) {
       res.status(423).json({ message: 'This MoM is confirmed and locked. No new remarks can be added.' });
@@ -635,6 +652,10 @@ export const addMomGeneralRemark = async (req: Request, res: Response): Promise<
 
     if (!reviewer) {
       res.status(403).json({ message: 'Only meeting members can add remarks to this MoM.' });
+      return;
+    }
+    if (!canManageMeeting(target, authReq.user) && !hasAcceptedParticipantAccess(target, currentUserId)) {
+      res.status(403).json({ message: 'Please accept the meeting invitation before adding MoM remarks.' });
       return;
     }
 

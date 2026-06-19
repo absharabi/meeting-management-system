@@ -4,6 +4,7 @@ import Meeting from '../models/Meeting';
 import Agenda from '../models/Agenda';
 import ActionItem from '../models/ActionItem';
 import User from '../models/User';
+import { rejectCancelledMeeting } from '../utils/meetingState';
 
 export const getMeetingReport = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -26,6 +27,7 @@ export const getMeetingReport = async (req: Request, res: Response): Promise<voi
       res.status(404).json({ message: 'Meeting not found matching that name or ID' });
       return;
     }
+    if (rejectCancelledMeeting(res, meeting)) return;
 
     const id = meeting._id;
 
@@ -112,10 +114,10 @@ export const getDateWiseReport = async (req: Request, res: Response): Promise<vo
       }
     }
 
-    let query: any = { date: { $gte: start, $lte: end } };
+    let query: any = { date: { $gte: start, $lte: end }, status: { $ne: 'Cancelled' } };
     
     if (keywordOrFilters.length > 0) {
-      query = { $and: [{ date: { $gte: start, $lte: end } }, { $or: keywordOrFilters }] };
+      query = { $and: [{ date: { $gte: start, $lte: end } }, { status: { $ne: 'Cancelled' } }, { $or: keywordOrFilters }] };
     }
     
     // If regular user, only show their organized meetings
@@ -149,7 +151,8 @@ export const getYearlyReport = async (req: Request, res: Response): Promise<void
 
     const requestingUser = (req as any).user;
     let matchQuery: any = {
-      date: { $gte: startDate, $lte: endDate }
+      date: { $gte: startDate, $lte: endDate },
+      status: { $ne: 'Cancelled' }
     };
     
     if (requestingUser.role === 'User') {

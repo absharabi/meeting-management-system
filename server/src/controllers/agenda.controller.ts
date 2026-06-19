@@ -4,6 +4,8 @@ import Meeting from '../models/Meeting';
 import Notification from '../models/Notification';
 import User from '../models/User';
 import { emitNotification } from '../services/socketService';
+import { rejectCancelledMeeting } from '../utils/meetingState';
+import { hasAcceptedParticipantAccess } from '../utils/meetingAccess';
 
 export const createAgenda = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -13,6 +15,7 @@ export const createAgenda = async (req: Request, res: Response): Promise<void> =
       res.status(404).json({ message: 'Meeting not found' });
       return;
     }
+    if (rejectCancelledMeeting(res, meeting)) return;
 
     const requestingUser = (req as any).user;
     
@@ -23,11 +26,16 @@ export const createAgenda = async (req: Request, res: Response): Promise<void> =
 
     // Verify user is part of the meeting
     const isParticipant = meeting.participants.some((p: any) => p.user.toString() === requestingUser.id);
+    const hasAccepted = hasAcceptedParticipantAccess(meeting, requestingUser.id);
     const isOrganizer = meeting.organizerId.toString() === requestingUser.id;
     const isAdmin = requestingUser.role === 'Admin' || requestingUser.role === 'SuperAdmin';
 
     if (!isParticipant && !isOrganizer && !isAdmin) {
       res.status(403).json({ message: 'You must be invited to this meeting to propose an agenda item' });
+      return;
+    }
+    if (!isOrganizer && !isAdmin && !hasAccepted) {
+      res.status(403).json({ message: 'Please accept the meeting invitation before proposing an agenda item.' });
       return;
     }
 
@@ -88,6 +96,13 @@ export const createAgenda = async (req: Request, res: Response): Promise<void> =
 
 export const getAgendasByMeeting = async (req: Request, res: Response): Promise<void> => {
   try {
+    const meeting = await Meeting.findById(req.params.meetingId);
+    if (!meeting) {
+      res.status(404).json({ message: 'Meeting not found' });
+      return;
+    }
+    if (rejectCancelledMeeting(res, meeting)) return;
+
     const agendas = await Agenda.find({ meetingId: req.params.meetingId })
       .populate('proposedBy', 'name email')
       .populate('documents.uploadedBy', 'name email')
@@ -121,6 +136,7 @@ export const updateAgendaStatus = async (req: Request, res: Response): Promise<v
       res.status(404).json({ message: 'Meeting not found' });
       return;
     }
+    if (rejectCancelledMeeting(res, meeting)) return;
 
     if (
       meeting.organizerId.toString() !== requestingUser.id &&
@@ -176,13 +192,19 @@ export const deleteAgenda = async (req: Request, res: Response): Promise<void> =
       res.status(404).json({ message: 'Meeting not found' });
       return;
     }
+    if (rejectCancelledMeeting(res, meeting)) return;
 
     const isProposer = existingAgenda.proposedBy.toString() === requestingUser.id;
     const isOrganizer = meeting.organizerId.toString() === requestingUser.id;
     const isAdmin = requestingUser.role === 'Admin' || requestingUser.role === 'SuperAdmin';
+    const hasAccepted = hasAcceptedParticipantAccess(meeting, requestingUser.id);
 
     if (!isProposer && !isOrganizer && !isAdmin) {
       res.status(403).json({ message: 'You do not have permission to delete this agenda item' });
+      return;
+    }
+    if (!isOrganizer && !isAdmin && !hasAccepted) {
+      res.status(403).json({ message: 'Please accept the meeting invitation before deleting agenda items.' });
       return;
     }
 
@@ -213,6 +235,7 @@ export const reorderAgendas = async (req: Request, res: Response): Promise<void>
       res.status(404).json({ message: 'Meeting not found' });
       return;
     }
+    if (rejectCancelledMeeting(res, meeting)) return;
 
     if (
       meeting.organizerId.toString() !== requestingUser.id &&

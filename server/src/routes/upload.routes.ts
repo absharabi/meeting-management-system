@@ -6,6 +6,8 @@ import Meeting from '../models/Meeting';
 import Agenda from '../models/Agenda';
 import { protect } from '../middleware/auth.middleware';
 import { populateMeeting, withDerivedMomMembers } from '../controllers/momController';
+import { rejectCancelledMeeting } from '../utils/meetingState';
+import { hasAcceptedParticipantAccess } from '../utils/meetingAccess';
 
 const router = express.Router();
 
@@ -106,6 +108,10 @@ router.post('/:id/upload-report', upload.single('reportFile'), async (req: Reque
       fs.unlinkSync(file.path);
       return res.status(404).json({ message: 'Meeting not found' });
     }
+    if (rejectCancelledMeeting(res, meeting)) {
+      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      return;
+    }
 
     // Only allow Organizer, Admin, SuperAdmin
     const user = (req as any).user;
@@ -157,6 +163,10 @@ router.post('/:id/upload-mom', momUpload.single('momFile'), async (req: Request,
       }
       return res.status(404).json({ message: 'Meeting not found' });
     }
+    if (rejectCancelledMeeting(res, meeting)) {
+      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      return;
+    }
 
     // Only allow Organizer, Admin, SuperAdmin
     const user = (req as any).user;
@@ -206,6 +216,7 @@ router.delete('/:id/upload-mom', async (req: Request, res: Response) => {
     if (!meeting) {
       return res.status(404).json({ message: 'Meeting not found' });
     }
+    if (rejectCancelledMeeting(res, meeting)) return;
 
     // Only allow Organizer, Admin, SuperAdmin
     const user = (req as any).user;
@@ -255,6 +266,10 @@ router.post(
         fs.unlinkSync(file.path);
         return res.status(404).json({ message: 'Meeting not found' });
       }
+      if (rejectCancelledMeeting(res, meeting)) {
+        if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+        return;
+      }
 
       const user = (req as any).user;
       const isOrganizer = meeting.organizerId.toString() === user.id;
@@ -262,11 +277,16 @@ router.post(
       const isParticipant = meeting.participants.some(
         (p: any) => p.user.toString() === user.id
       );
+      const hasAccepted = hasAcceptedParticipantAccess(meeting, user.id);
 
-      // Allow organizer, admin, or any invited participant
+      // Allow organizer/admin, or participants who have accepted this meeting.
       if (!isOrganizer && !isAdmin && !isParticipant) {
         fs.unlinkSync(file.path);
         return res.status(403).json({ message: 'You must be part of this meeting to upload documents.' });
+      }
+      if (!isOrganizer && !isAdmin && !hasAccepted) {
+        fs.unlinkSync(file.path);
+        return res.status(403).json({ message: 'Please accept the meeting invitation before uploading agenda documents.' });
       }
 
       const agenda = await Agenda.findById(agendaId);
@@ -308,6 +328,7 @@ router.delete(
 
       const meeting = await Meeting.findById(meetingId);
       if (!meeting) return res.status(404).json({ message: 'Meeting not found' });
+      if (rejectCancelledMeeting(res, meeting)) return;
 
       const user = (req as any).user;
       const isOrganizer = meeting.organizerId.toString() === user.id;
@@ -322,10 +343,14 @@ router.delete(
 
       const doc = agenda.documents[idx];
       const isUploader = doc.uploadedBy?.toString() === user.id;
+      const hasAccepted = hasAcceptedParticipantAccess(meeting, user.id);
 
       // Allow: the person who uploaded it, or organizer/admin
       if (!isUploader && !isOrganizer && !isAdmin) {
         return res.status(403).json({ message: 'You can only delete documents you uploaded.' });
+      }
+      if (!isOrganizer && !isAdmin && !hasAccepted) {
+        return res.status(403).json({ message: 'Please accept the meeting invitation before deleting agenda documents.' });
       }
 
       // Remove physical file

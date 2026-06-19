@@ -1,6 +1,9 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Feedback from '../models/Feedback';
+import Meeting from '../models/Meeting';
+import { rejectCancelledMeeting } from '../utils/meetingState';
+import { canManageMeeting, hasAcceptedParticipantAccess } from '../utils/meetingAccess';
 
 export const submitFeedback = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -14,6 +17,18 @@ export const submitFeedback = async (req: Request, res: Response): Promise<void>
 
     if (!rating || rating < 1 || rating > 5) {
       res.status(400).json({ message: 'Rating must be between 1 and 5' });
+      return;
+    }
+
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      res.status(404).json({ message: 'Meeting not found' });
+      return;
+    }
+    if (rejectCancelledMeeting(res, meeting)) return;
+
+    if (!canManageMeeting(meeting, requestingUser) && !hasAcceptedParticipantAccess(meeting, requestingUser.id)) {
+      res.status(403).json({ message: 'Please accept the meeting invitation before submitting feedback.' });
       return;
     }
 
@@ -38,6 +53,13 @@ export const getMeetingFeedback = async (req: Request, res: Response): Promise<v
       res.status(400).json({ message: 'Invalid meeting ID' });
       return;
     }
+
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      res.status(404).json({ message: 'Meeting not found' });
+      return;
+    }
+    if (rejectCancelledMeeting(res, meeting)) return;
 
     const feedbacks = await Feedback.find({ meetingId }).populate('userId', 'name avatar');
     

@@ -12,6 +12,45 @@
   }
 }
 
+/*
+ * Keep user-authored rich text inside its layout boundary. Quill can produce
+ * links, preformatted text, images, and tables that do not wrap by default.
+ */
+.rich-text-content,
+.ql-container,
+.ql-editor {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.rich-text-content *,
+.ql-editor * {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.rich-text-content pre,
+.ql-editor pre {
+  white-space: pre-wrap;
+}
+
+.rich-text-content img,
+.rich-text-content video,
+.ql-editor img,
+.ql-editor video {
+  height: auto;
+  max-width: 100%;
+}
+
+.rich-text-content table,
+.ql-editor table {
+  table-layout: fixed;
+  width: 100%;
+}
+
 @keyframes slideIn {
   from {
     transform: translateX(100%);
