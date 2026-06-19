@@ -35,7 +35,7 @@ jobs:
 
     # Frontend Setup
     - name: Install Frontend Dependencies
-      run: npm install
+      run: npm install --legacy-peer-deps
       working-directory: ./client
 
     - name: Lint Frontend
