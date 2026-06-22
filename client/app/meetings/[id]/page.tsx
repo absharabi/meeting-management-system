@@ -343,6 +343,47 @@ export default function MeetingDetailsPage() {
     }
   };
 
+  const handleEditAgenda = async (agendaId: string, data: { title: string; description: string; timeAllocated: number; isEmergency: boolean }) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/agendas/${agendaId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        toast.success('Agenda updated');
+        fetchMeetingAndAgendas();
+      } else {
+        const err = await res.json();
+        toast.error(err.message || 'Failed to update agenda');
+      }
+    } catch (error) {
+      console.error('Failed to edit agenda', error);
+      toast.error('Error updating agenda');
+    }
+  };
+
+  const handleConfirmAgenda = async (agendaId: string) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings/${meetingId}/agendas/${agendaId}/confirm`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        toast.success('Agenda confirmed and submitted to organizer');
+        fetchMeetingAndAgendas();
+      } else {
+        const err = await res.json();
+        toast.error(err.message || 'Failed to confirm agenda');
+      }
+    } catch (error) {
+      console.error('Failed to confirm agenda', error);
+      toast.error('Error confirming agenda');
+    }
+  };
+
   const handleUploadAgendaDocument = async (agendaId: string, file: File) => {
     try {
       const token = localStorage.getItem('accessToken');
@@ -1069,6 +1110,8 @@ export default function MeetingDetailsPage() {
                       meetingId={meetingId}
                       onApprove={handleApprove}
                       onDelete={handleDeleteAgenda}
+                      onEdit={handleEditAgenda}
+                      onConfirm={handleConfirmAgenda}
                       onUploadDocument={handleUploadAgendaDocument}
                       onDeleteDocument={handleDeleteAgendaDocument}
                     />

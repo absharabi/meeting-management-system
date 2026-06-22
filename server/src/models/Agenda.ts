@@ -19,6 +19,7 @@ export interface IAgenda extends Document {
   timeAllocated?: number; // in minutes
   proposedBy: Types.ObjectId;
   status: AgendaStatus;
+  isConfirmedByProposer: boolean;
   isEmergency: boolean;
   sequence: number;
   documents: IAgendaDocument[];
@@ -55,6 +56,10 @@ const AgendaSchema = new Schema<IAgenda>(
       type: String,
       enum: Object.values(AgendaStatus),
       default: AgendaStatus.Pending,
+    },
+    isConfirmedByProposer: {
+      type: Boolean,
+      default: false,
     },
     isEmergency: {
       type: Boolean,

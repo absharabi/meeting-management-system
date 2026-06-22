@@ -16,6 +16,9 @@ import {
   ChevronUp,
   Eye,
   Lock,
+  Pencil,
+  Check,
+  Send,
 } from 'lucide-react';
 
 interface AgendaDocument {
@@ -34,6 +37,8 @@ interface AgendaItemProps {
   meetingId: string;
   onApprove: (id: string) => void;
   onDelete: (id: string) => void;
+  onEdit: (id: string, data: { title: string; description: string; timeAllocated: number; isEmergency: boolean }) => Promise<void>;
+  onConfirm: (id: string) => Promise<void>;
   onUploadDocument: (agendaId: string, file: File) => Promise<void>;
   onDeleteDocument: (agendaId: string, docIndex: number) => Promise<void>;
 }
@@ -68,6 +73,8 @@ export default function AgendaItem({
   meetingId,
   onApprove,
   onDelete,
+  onEdit,
+  onConfirm,
   onUploadDocument,
   onDeleteDocument,
 }: AgendaItemProps) {
@@ -91,6 +98,17 @@ export default function AgendaItem({
   const [uploading, setUploading] = useState(false);
   const [deletingIdx, setDeletingIdx] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Edit state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(agenda.title);
+  const [editDescription, setEditDescription] = useState(agenda.description || '');
+  const [editTime, setEditTime] = useState(agenda.timeAllocated || 15);
+  const [editEmergency, setEditEmergency] = useState(agenda.isEmergency || false);
+  const [saving, setSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  const isOwnDraft = agenda.proposedBy?._id === currentUserId && !agenda.isConfirmedByProposer;
 
   const allDocuments: AgendaDocument[] = agenda.documents || [];
 
@@ -182,6 +200,13 @@ export default function AgendaItem({
                 </span>
               )}
 
+              {/* Draft badge for unconfirmed items */}
+              {!agenda.isConfirmedByProposer && (
+                <span className="px-2.5 py-1 bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 text-xs rounded-full font-medium flex items-center gap-1">
+                  <Pencil size={12} /> Draft
+                </span>
+              )}
+
               {isOrganizerOrAdmin && (
                 <div className="flex gap-1 ml-2">
                   {agenda.status === 'Pending' && (
@@ -202,13 +227,120 @@ export default function AgendaItem({
                   </button>
                 </div>
               )}
+
+              {/* Participant actions on their own draft */}
+              {!isOrganizerOrAdmin && isOwnDraft && (
+                <div className="flex gap-1 ml-2">
+                  <button
+                    onClick={() => {
+                      setEditTitle(agenda.title);
+                      setEditDescription(agenda.description || '');
+                      setEditTime(agenda.timeAllocated || 15);
+                      setEditEmergency(agenda.isEmergency || false);
+                      setIsEditing(true);
+                    }}
+                    className="p-1 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded"
+                    title="Edit agenda item"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                  <button
+                    onClick={() => onDelete(agenda._id)}
+                    className="p-1 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"
+                    title="Delete agenda item"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                  <button
+                    disabled={confirming}
+                    onClick={async () => {
+                      setConfirming(true);
+                      try { await onConfirm(agenda._id); } finally { setConfirming(false); }
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded disabled:opacity-50"
+                    title="Confirm and submit to organizer"
+                  >
+                    <Send size={12} /> {confirming ? 'Confirming...' : 'Confirm'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
-          <div
-            className="rich-text-content min-w-0 max-w-full overflow-hidden text-gray-500 dark:text-gray-400 text-sm mt-1 prose prose-sm dark:prose-invert"
-            dangerouslySetInnerHTML={{ __html: agenda.description || '' }}
-          />
+          {/* Inline Edit Form */}
+          {isEditing ? (
+            <div className="mt-3 space-y-3 border-t border-gray-100 dark:border-gray-700 pt-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Title</label>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={e => setEditTitle(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Description</label>
+                <textarea
+                  value={editDescription}
+                  onChange={e => setEditDescription(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 text-sm"
+                />
+              </div>
+              <div className="flex gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Time (mins)</label>
+                  <input
+                    type="number"
+                    min={5}
+                    value={editTime}
+                    onChange={e => setEditTime(parseInt(e.target.value) || 15)}
+                    className="w-24 px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 text-sm"
+                  />
+                </div>
+                <div className="flex items-end gap-2 pb-2">
+                  <input
+                    type="checkbox"
+                    checked={editEmergency}
+                    onChange={e => setEditEmergency(e.target.checked)}
+                    className="rounded text-red-600 focus:ring-red-500"
+                  />
+                  <label className="text-xs text-gray-600 dark:text-gray-400">Emergency</label>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  disabled={saving}
+                  onClick={async () => {
+                    setSaving(true);
+                    try {
+                      await onEdit(agenda._id, { title: editTitle, description: editDescription, timeAllocated: editTime, isEmergency: editEmergency });
+                      setIsEditing(false);
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
+                >
+                  <Check size={14} /> {saving ? 'Saving...' : 'Save'}
+                </button>
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 rounded-lg"
+                >
+                  <X size={14} /> Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div
+                className="rich-text-content min-w-0 max-w-full overflow-hidden text-gray-500 dark:text-gray-400 text-sm mt-1 prose prose-sm dark:prose-invert"
+                dangerouslySetInnerHTML={{ __html: agenda.description || '' }}
+              />
+            </>
+          )}
 
           <div className="flex flex-wrap gap-4 mt-3 text-xs text-gray-500 dark:text-gray-400 font-medium">
             <span className="flex items-center gap-1">

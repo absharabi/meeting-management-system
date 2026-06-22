@@ -3,6 +3,8 @@ import {
   createAgenda, 
   getAgendasByMeeting, 
   updateAgendaStatus, 
+  updateAgenda,
+  confirmAgenda,
   deleteAgenda,
   reorderAgendas
 } from '../controllers/agenda.controller';
@@ -18,6 +20,8 @@ router.put('/reorder', reorderAgendas);
 router.post('/', createAgenda);
 router.get('/', getAgendasByMeeting);
 router.put('/:id/status', updateAgendaStatus);
+router.put('/:id/confirm', confirmAgenda);
+router.put('/:id', updateAgenda);
 router.delete('/:id', deleteAgenda);
 
 export default router;

@@ -1,5 +1,4 @@
 import { Server as SocketIOServer } from 'socket.io';
-import { Server as SocketIOServer } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import Meeting from '../models/Meeting';
 import { isMeetingCancelled } from '../utils/meetingState';
