@@ -82,6 +82,12 @@ export default function MeetingTable({
   }, [searchQuery]);
 
   useEffect(() => {
+    const handleUpdate = () => fetchMeetings(searchQuery);
+    window.addEventListener('meeting_update_required', handleUpdate);
+    return () => window.removeEventListener('meeting_update_required', handleUpdate);
+  }, [searchQuery]);
+
+  useEffect(() => {
     // Default to 'all' if admin, else 'created'
     if (currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin') {
       setActiveTab('all');

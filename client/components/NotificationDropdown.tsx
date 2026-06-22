@@ -149,6 +149,9 @@ export default function NotificationDropdown() {
       
       // Add new notification to the top of the list instantly
       setNotifications(prev => [notification, ...prev]);
+
+      // Trigger global refresh for meeting lists and details pages
+      window.dispatchEvent(new Event('meeting_update_required'));
     });
 
     // Cleanup on unmount

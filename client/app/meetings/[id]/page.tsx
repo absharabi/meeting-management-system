@@ -110,6 +110,12 @@ export default function MeetingDetailsPage() {
     fetchMeetingAndAgendas();
   }, [meetingId]);
 
+  useEffect(() => {
+    const handleUpdate = () => fetchMeetingAndAgendas();
+    window.addEventListener('meeting_update_required', handleUpdate);
+    return () => window.removeEventListener('meeting_update_required', handleUpdate);
+  }, [meetingId]);
+
   const openPostponeModal = () => {
     setPostponeSchedule({
       date: meeting?.date ? String(meeting.date).split('T')[0] : '',
