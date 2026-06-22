@@ -1,14 +1,14 @@
 import { Server as SocketIOServer } from 'socket.io';
+import { Server as SocketIOServer } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import Meeting from '../models/Meeting';
 import { isMeetingCancelled } from '../utils/meetingState';
 
 let io: SocketIOServer;
 
-// Map user ID to their active Socket ID
-// In a production app, a user might have multiple tabs open (multiple sockets),
-// so this could be Map<string, string[]> instead. We'll use Map<string, string> for simplicity in MVP.
-const connectedUsers = new Map<string, string>();
+// Map user ID to a Set of their active Socket IDs
+// This allows multiple tabs open for the same user to all receive real-time notifications.
+const connectedUsers = new Map<string, Set<string>>();
 
 export const initSocketService = (server: HttpServer) => {
   io = new SocketIOServer(server, {
@@ -23,16 +23,24 @@ export const initSocketService = (server: HttpServer) => {
 
     socket.on('register', (userId: string) => {
       console.log(`User ${userId} registered with socket ${socket.id}`);
-      connectedUsers.set(userId, socket.id);
+      if (!connectedUsers.has(userId)) {
+        connectedUsers.set(userId, new Set<string>());
+      }
+      connectedUsers.get(userId)!.add(socket.id);
     });
 
     socket.on('disconnect', () => {
       console.log('Client disconnected:', socket.id);
       // Remove the disconnected socket from our map
-      for (const [userId, socketId] of connectedUsers.entries()) {
-        if (socketId === socket.id) {
-          connectedUsers.delete(userId);
-          console.log(`User ${userId} unregistered`);
+      for (const [userId, socketIds] of connectedUsers.entries()) {
+        if (socketIds.has(socket.id)) {
+          socketIds.delete(socket.id);
+          console.log(`Socket ${socket.id} removed from user ${userId}`);
+          
+          if (socketIds.size === 0) {
+            connectedUsers.delete(userId);
+            console.log(`User ${userId} fully unregistered (no active tabs)`);
+          }
           break;
         }
       }
@@ -79,8 +87,10 @@ export const initSocketService = (server: HttpServer) => {
 export const emitNotification = (userId: string, notificationData: any) => {
   if (!io) return;
   
-  const socketId = connectedUsers.get(userId.toString());
-  if (socketId) {
-    io.to(socketId).emit('new_notification', notificationData);
+  const socketIds = connectedUsers.get(userId.toString());
+  if (socketIds && socketIds.size > 0) {
+    socketIds.forEach(socketId => {
+      io.to(socketId).emit('new_notification', notificationData);
+    });
   }
 };
