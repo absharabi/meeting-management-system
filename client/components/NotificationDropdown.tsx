@@ -89,16 +89,25 @@ export default function NotificationDropdown() {
     const token = localStorage.getItem('accessToken');
     if (token) {
       try {
-        const payloadBase64 = token.split('.')[1];
+        // Safe base64url decoding
+        let payloadBase64 = token.split('.')[1];
+        payloadBase64 = payloadBase64.replace(/-/g, '+').replace(/_/g, '/');
+        const pad = payloadBase64.length % 4;
+        if (pad) payloadBase64 += '='.repeat(4 - pad);
+        
         const payload = JSON.parse(atob(payloadBase64));
         currentUserId = payload.id;
       } catch (e) {
-        console.error('Failed to parse token');
+        console.error('Failed to parse token', e);
       }
     }
     
     // Initialize socket connection
-    const socket = io(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}`, {
+    let url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+    if (url.endsWith('/api')) {
+      url = url.slice(0, -4);
+    }
+    const socket = io(url, {
       withCredentials: true
     });
 

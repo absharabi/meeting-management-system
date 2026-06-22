@@ -21,7 +21,10 @@ export default function LiveNotesPad({ meetingId, initialContent = '', currentUs
 
   useEffect(() => {
     // Initialize Socket
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}`;
+    let socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}`;
+    if (socketUrl.endsWith('/api')) {
+      socketUrl = socketUrl.slice(0, -4);
+    }
     socketRef.current = io(socketUrl, {
       withCredentials: true,
       transports: ['websocket', 'polling']
