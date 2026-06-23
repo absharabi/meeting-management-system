@@ -48,10 +48,13 @@ const upload = multer({
 
 const quotePath = (value: string) => `"${value.replace(/"/g, '\\"')}"`;
 
+const ffmpegPath = require('ffmpeg-static');
+
 const normalizeToWav = async (inputPath: string): Promise<string> => {
   const parsed = path.parse(inputPath);
   const outputPath = path.join(parsed.dir, `${parsed.name}-normalized.wav`);
-  const command = `ffmpeg -y -i ${quotePath(inputPath)} -vn -acodec pcm_s16le -ar 16000 -ac 1 ${quotePath(outputPath)}`;
+  const ffmpegExec = ffmpegPath || 'ffmpeg';
+  const command = `${quotePath(ffmpegExec)} -y -i ${quotePath(inputPath)} -vn -acodec pcm_s16le -ar 16000 -ac 1 ${quotePath(outputPath)}`;
   await execAsync(command, { maxBuffer: 1024 * 1024 * 20 });
   return outputPath;
 };
