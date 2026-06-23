@@ -65,11 +65,13 @@ const agendaDocUpload = multer({
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'image/jpeg',
       'image/png',
+      'audio/mpeg',
+      'audio/wav',
     ];
     if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Unsupported file type. Allowed: PDF, Word, Excel, JPEG, PNG.'));
+      cb(new Error('Unsupported file type. Allowed: PDF, Word, Excel, JPEG, PNG, MP3, WAV.'));
     }
   }
 });

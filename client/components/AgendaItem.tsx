@@ -413,14 +413,14 @@ export default function AgendaItem({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.mp3,.wav"
                   className="hidden"
                   onChange={handleFileChange}
                   disabled={uploading}
                 />
               </label>
               <span className="text-[10px] text-gray-400 dark:text-gray-500">
-                PDF, Word, Excel, Images · max 10 MB
+                PDF, Word, Excel, Images, Audio · max 10 MB
               </span>
             </div>
             ) : (
