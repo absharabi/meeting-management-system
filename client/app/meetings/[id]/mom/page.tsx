@@ -387,14 +387,6 @@ export default function MomPage() {
       return;
     }
 
-    // Prevent infinite loops or errors if transcript data is empty
-    if (!meeting?.aiSummary && (!meeting?.aiKeyPoints || meeting.aiKeyPoints.length === 0) && !meeting?.aiTranscript) {
-      setNotice({
-        message: "No transcript or summary data found. Please generate a meeting summary first before filling the remaining boxes.",
-        type: "error"
-      });
-      return;
-    }
 
     const saved = await saveMom("Draft");
     if (saved) {
