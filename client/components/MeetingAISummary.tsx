@@ -11,7 +11,7 @@ interface MeetingAISummaryProps {
 }
 
 const transcriptTypes = ".txt";
-const audioTypes = ".wav,.mp3,.m4a";
+const audioTypes = ".wav,.mp3,.m4a,audio/*,audio/mpeg,audio/wav";
 const videoTypes = ".mp4,.mov,.webm";
 
 export default function MeetingAISummary({ meetingId, meeting, onUpdated, momMode = false }: MeetingAISummaryProps) {
