@@ -221,7 +221,7 @@ export default function AgendaItemForm({ item, index, onChange, onRemove, disabl
 
       <div className="mt-6 border-t border-gray-100 pt-5 dark:border-gray-800">
         <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
-          <MessageSquare size={16} className="text-blue-500" /> Participant Comments
+          <MessageSquare size={16} className="text-blue-500" /> Dissent Note
         </h4>
         
         {item.comments && item.comments.length > 0 && (
