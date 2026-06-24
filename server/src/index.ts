@@ -62,6 +62,7 @@ connectDB().then(async () => {
 initReminderService();
 
 const app = express();
+app.set('trust proxy', 1);
 const server = createServer(app);
 
 // Initialize Socket.io
