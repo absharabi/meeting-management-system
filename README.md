@@ -1,5 +1,7 @@
 # Meeting Management System
 
+[![Live Demo](https://img.shields.io/badge/Live_Demo-nitc--mms.vercel.app-blue?style=for-the-badge&logo=vercel)](https://nitc-mms.vercel.app)
+
 A comprehensive, full-stack enterprise meeting management solution specially designed for **NIT Calicut**. This application streamlines the entire lifecycle of corporate and academic meetings—from scheduling, sending invitations, and tracking RSVPs, to drafting Minutes of Meetings (MoMs), generating professional PDF/Excel reports, and managing post-meeting Action Items.
 
 ## Features
@@ -36,6 +38,17 @@ A comprehensive, full-stack enterprise meeting management solution specially des
 - **Email Delivery:** Nodemailer
 - **Task Scheduling:** Node-cron
 - **AI Integration:** Local LLMs via [Ollama](https://ollama.com/)
+
+---
+
+## Production Deployment
+
+The project is currently deployed and accessible live over the internet:
+- **Frontend (Vercel):** [https://nitc-mms.vercel.app](https://nitc-mms.vercel.app)
+- **Backend API (Render):** `https://nitc-mms-api.onrender.com`
+- **Database:** MongoDB Atlas
+
+> **Note on Performance:** The backend is hosted on a free Render tier. If the system is inactive for 15 minutes, the server spins down. The **first request** to wake it up may take ~50 seconds. Subsequent requests will be at normal speed.
 
 ---
 
