@@ -172,11 +172,19 @@ export const createMeeting = async (req: Request, res: Response): Promise<void> 
               </div>
             </div>
 
-            <!-- Footer -->
-            <div style="background-color: #0b1121; padding: 20px; text-align: center;">
-              <p style="color: #64748b; font-size: 13px; margin: 0; line-height: 1.5;">
-                Sent securely from Meeting Management System.<br>
-                Reply directly to this email to contact the organizer.
+            <!-- Footer & Compliance -->
+            <div style="background-color: #0b1121; padding: 30px 20px; text-align: center; border-top: 1px solid #1e293b;">
+              <p style="color: #64748b; font-size: 12px; margin: 0 0 10px 0; line-height: 1.6;">
+                <strong>Why are you receiving this email?</strong><br>
+                You are receiving this automated notification because you are a registered participant or organizer within the official Meeting Management System.
+              </p>
+              <p style="color: #64748b; font-size: 12px; margin: 0 0 10px 0; line-height: 1.6;">
+                <strong>Mailing Address:</strong><br>
+                Meeting Management System HQ<br>
+                123 Enterprise Avenue, Tech District, 10001
+              </p>
+              <p style="color: #64748b; font-size: 11px; margin: 20px 0 0 0; line-height: 1.5;">
+                If you wish to stop receiving these notifications, please log in to your dashboard and update your <a href="${process.env.FRONTEND_URL}/settings" style="color: #8b5cf6; text-decoration: underline;">Notification Preferences</a> or contact your system administrator.
               </p>
             </div>
           </div>`,
@@ -943,5 +951,42 @@ export const rejectNominee = async (req: Request, res: Response): Promise<void> 
     res.json({ message: 'Nominee rejected successfully', meeting });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+export const searchMeetings = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { q } = req.query;
+    const requestingUser = (req as any).user;
+
+    if (!q || typeof q !== 'string') {
+      res.status(400).json({ message: 'Search query is required' });
+      return;
+    }
+
+    let query: any = { $text: { $search: q } };
+
+    // Enforce data privacy for non-admins
+    if (!isGlobalAdmin(requestingUser.role)) {
+      query.$or = [
+        { organizerId: requestingUser.id },
+        { 'participants.user': requestingUser.id },
+        { visibility: 'Public' }
+      ];
+    }
+
+    const meetings = await Meeting.find(
+      query,
+      { score: { $meta: "textScore" } }
+    )
+      .populate('organizerId', 'name email')
+      .populate('participants.user', 'name email department')
+      .sort({ score: { $meta: "textScore" } })
+      .limit(50);
+
+    res.json(meetings);
+  } catch (error) {
+    console.error('Error in searchMeetings:', error);
+    res.status(500).json({ message: 'Server error while searching meetings', error });
   }
 };

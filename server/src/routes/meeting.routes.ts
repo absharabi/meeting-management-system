@@ -8,7 +8,8 @@ import {
   markAttendance,
   rsvpMeeting,
   approveNominee,
-  rejectNominee
+  rejectNominee,
+  searchMeetings
 } from '../controllers/meeting.controller';
 import { protect } from '../middleware/auth.middleware';
 
@@ -18,6 +19,7 @@ const router = express.Router();
 router.use(protect);
 
 // CRUD Routes
+router.get('/search', searchMeetings);
 router.post('/', createMeeting);
 router.get('/', getMeetings);
 router.put('/:id', updateMeeting);

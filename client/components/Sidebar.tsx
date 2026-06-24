@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { LayoutDashboard, Users, Calendar, X, LogOut, FileText } from 'lucide-react';
+import GlobalSearch from './GlobalSearch';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -70,7 +71,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole = 'User' })
           </button>
         </div>
         
-        <nav className="flex-1 px-4 space-y-2 mt-4">
+        <GlobalSearch />
+        
+        <nav className="flex-1 px-4 space-y-2 mt-2">
           <Link href="/dashboard" className={itemClass(pathname === '/dashboard')}>
             <LayoutDashboard size={18} />
             Dashboard

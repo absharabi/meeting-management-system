@@ -349,4 +349,39 @@ const MeetingSchema = new Schema<IMeeting>(
   }
 );
 
+MeetingSchema.index({
+  title: 'text',
+  description: 'text',
+  venue: 'text',
+  meetingType: 'text',
+  'agendaItems.subject': 'text',
+  'agendaItems.backgroundNote': 'text',
+  'agendaItems.decision': 'text',
+  'agendaItems.comments.text': 'text',
+  'momGeneralRemarks.text': 'text',
+  aiTranscript: 'text',
+  aiSummary: 'text',
+  'aiKeyPoints': 'text',
+  'aiDecisions': 'text',
+  'aiActionItems.task': 'text'
+}, {
+  weights: {
+    title: 10,
+    'agendaItems.subject': 8,
+    'agendaItems.decision': 8,
+    aiSummary: 6,
+    description: 5,
+    venue: 5,
+    meetingType: 5,
+    'agendaItems.backgroundNote': 5,
+    'agendaItems.comments.text': 4,
+    'momGeneralRemarks.text': 4,
+    aiKeyPoints: 5,
+    aiDecisions: 5,
+    'aiActionItems.task': 5,
+    aiTranscript: 2
+  },
+  name: "MeetingTextIndex_v3"
+});
+
 export default mongoose.model<IMeeting>('Meeting', MeetingSchema);

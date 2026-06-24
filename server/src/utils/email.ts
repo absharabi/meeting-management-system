@@ -70,11 +70,40 @@ export const sendEmail = async (
       }
     }
 
+    // Create a clean plain text fallback to prevent spam filters from flagging HTML-only emails
+    const textFallback = html
+      .replace(/<br\s*[\/]?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<[^>]*>?/gm, '')
+      .replace(/&nbsp;/g, ' ')
+      .trim();
+
+    const fullHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${subject}</title>
+</head>
+<body style="margin: 0; padding: 20px; background-color: #f1f5f9;">
+  ${html}
+</body>
+</html>
+    `;
+
     const mailOptions: any = {
       from: `"Meeting Management System" <${process.env.GMAIL_USER}>`,
       to,
       subject,
-      html,
+      html: fullHtml,
+      text: textFallback, // Plain text alternative is crucial for spam avoidance
+      headers: {
+        'X-Priority': '1 (Highest)',
+        'X-Mailer': 'MMS Mailer',
+        'Importance': 'High',
+        'List-Unsubscribe': `<mailto:${process.env.GMAIL_USER}?subject=unsubscribe>`
+      },
       attachments
     };
     if (replyTo) mailOptions.replyTo = replyTo;
