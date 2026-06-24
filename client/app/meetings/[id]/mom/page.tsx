@@ -13,9 +13,8 @@ import SummaryTable from "@/components/mom/SummaryTable";
 import { MemberPresent, MomAgendaItem, MomApprovalStatus, MomBlock, MomBlockType, MomCoverDetails, MomMeeting, MomStatus } from "@/components/mom/types";
 
 const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/meetings`;
-const inputClass = "w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-800 dark:bg-gray-950 dark:text-white";
 import {
-  logoPaths, buildingPaths, defaultCoverDetails, MeetingAgenda, deriveMembersFromParticipants, mergeCoverDetails, isCoverComplete, getOrganizerId, blockLabels, presetBlockTypes, createPresetBlocks, normalizeBlocks, normalizeAgendaItemForBlocks, normalizeAgendaItems, normalizeTableValue, compactTableValue, hasBlockDisplayValue, visibleBlocks, getBlockText, getBlockDisplayValue, mergeAgendaModuleItems, loadImage, exportMomPdf, exportMomWord, tableBlockToHtml, stripHtml, escapeHtml, formatDate, drawOfficialCover, drawPageHeader, ensureSpace, writeOfficialBlock, writeOfficialTable, addPageNumbers, readJsonResponse
+  logoPaths, buildingPaths, defaultCoverDetails, MeetingAgenda, deriveMembersFromParticipants, mergeCoverDetails, getOrganizerId, blockLabels, presetBlockTypes, createPresetBlocks, normalizeBlocks, normalizeAgendaItemForBlocks, normalizeAgendaItems, normalizeTableValue, compactTableValue, hasBlockDisplayValue, visibleBlocks, getBlockText, getBlockDisplayValue, mergeAgendaModuleItems, loadImage, exportMomPdf, exportMomWord, tableBlockToHtml, stripHtml, escapeHtml, formatDate, drawOfficialCover, drawPageHeader, ensureSpace, writeOfficialBlock, writeOfficialTable, addPageNumbers, readJsonResponse
 } from "@/utils/pdfExport";
 
 const emptyAgendaItem = (order: number): MomAgendaItem => ({
@@ -226,10 +225,6 @@ export default function MomPage() {
       setNotice({ message: "This MoM is confirmed and locked. It cannot be changed.", type: "error" });
       return false;
     }
-    if ((status === "Confirmed") && !isCoverComplete(momCoverDetails)) {
-      window.alert("Please complete the cover page details before confirming the MoM.");
-      return false;
-    }
     if (status === "Confirmed" && !allApproved) {
       window.alert(`Everyone in the meeting must approve before confirmation. Pending: ${pendingApprovals.map((approval) => approval.name).join(", ") || "No reviewers found"}.`);
       return false;
@@ -303,10 +298,6 @@ export default function MomPage() {
   };
 
   const exportPdf = async () => {
-    if (!isCoverComplete(momCoverDetails)) {
-      window.alert("Please complete the cover page details before exporting the MoM.");
-      return;
-    }
     if (!allApproved) {
       window.alert(`Everyone in the meeting must approve before export. Pending: ${pendingApprovals.map((approval) => approval.name).join(", ") || "No reviewers found"}.`);
       return;
@@ -326,10 +317,6 @@ export default function MomPage() {
   };
 
   const exportWord = () => {
-    if (!isCoverComplete(momCoverDetails)) {
-      window.alert("Please complete the cover page details before exporting the MoM.");
-      return;
-    }
     if (!allApproved) {
       window.alert(`Everyone in the meeting must approve before export. Pending: ${pendingApprovals.map((approval) => approval.name).join(", ") || "No reviewers found"}.`);
       return;
@@ -626,33 +613,8 @@ export default function MomPage() {
             <InfoRow label="Time" value={`${meeting.startTime || "-"} to ${meeting.endTime || "-"}`} />
             <InfoRow label="Mode" value={meeting.mode || "-"} />
             <InfoRow label="Venue / Link" value={meeting.venue || meeting.link || "-"} />
+            <InfoRow label="Institute" value={momCoverDetails.instituteName || "National Institute of Technology Calicut"} />
           </dl>
-        </section>
-
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-          <div className="mb-4">
-            <h2 className="font-bold text-gray-900 dark:text-white">Cover Details</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">These fields control the first page of the official MoM template.</p>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <CoverField label="Meeting Number">
-              <input disabled={!canEdit} value={momCoverDetails.meetingNumber} onChange={(event) => setMomCoverDetails((current) => ({ ...current, meetingNumber: event.target.value }))} className={inputClass} placeholder="71st" />
-            </CoverField>
-            <CoverField label="Meeting Body">
-              <input disabled={!canEdit} value={momCoverDetails.meetingBody} onChange={(event) => setMomCoverDetails((current) => ({ ...current, meetingBody: event.target.value }))} className={inputClass} placeholder="Board of Governors" />
-            </CoverField>
-            <CoverField label="Institute Name">
-              <input disabled={!canEdit} value={momCoverDetails.instituteName} onChange={(event) => setMomCoverDetails((current) => ({ ...current, instituteName: event.target.value }))} className={inputClass} placeholder="National Institute of Technology Calicut" />
-            </CoverField>
-            <CoverField label="Date Line">
-              <input readOnly value={momCoverDetails.dateLine} className={`${inputClass} cursor-not-allowed bg-gray-50 dark:bg-gray-900`} />
-            </CoverField>
-            <div className="md:col-span-2">
-              <CoverField label="Venue / Mode Line">
-                <input readOnly value={momCoverDetails.venueLine} className={`${inputClass} cursor-not-allowed bg-gray-50 dark:bg-gray-900`} />
-              </CoverField>
-            </div>
-          </div>
         </section>
 
         <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -832,15 +794,6 @@ export default function MomPage() {
         )}
       </div>
     </main>
-  );
-}
-
-function CoverField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-300">{label}</span>
-      {children}
-    </label>
   );
 }
 

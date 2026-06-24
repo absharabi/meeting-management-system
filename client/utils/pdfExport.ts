@@ -20,8 +20,8 @@ type JsPdfWithAutoTable = jsPDF & {
 };
 
 export const defaultCoverDetails = (meeting?: MomMeeting | null): MomCoverDetails => ({
-  meetingNumber: "71st",
-  meetingBody: "Board of Governors",
+  meetingNumber: meeting?.title || "",
+  meetingBody: meeting?.meetingType || "Meeting",
   instituteName: "National Institute of Technology Calicut",
   dateLine: meeting ? `on ${formatDate(meeting.date)} from ${meeting.startTime || "start time"} to ${meeting.endTime || "end time"}` : "",
   venueLine: meeting ? `${meeting.mode || "Meeting"} mode at ${meeting.venue || meeting.link || "the notified venue"}` : "",
@@ -42,13 +42,13 @@ export function mergeCoverDetails(meeting: MomMeeting, details?: Partial<MomCove
 }
 
 export function isCoverComplete(details: MomCoverDetails) {
-  return Boolean(
-    details.meetingNumber?.trim() &&
-    details.meetingBody?.trim() &&
-    details.instituteName?.trim() &&
-    details.dateLine?.trim() &&
-    details.venueLine?.trim()
-  );
+  return Boolean(details.dateLine?.trim() && details.venueLine?.trim());
+}
+
+function getMeetingNumberForAgenda(meeting: MomMeeting, cover: MomCoverDetails) {
+  const savedNumber = meeting.momCoverDetails?.meetingNumber || cover.meetingNumber || "";
+  const digits = savedNumber.replace(/\D/g, "");
+  return digits || "XX";
 }
 
 export function getOrganizerId(organizer: MomMeeting["organizerId"]) {
@@ -251,8 +251,8 @@ export async function exportMomPdf(meeting: MomMeeting) {
   const margin = 48;
   const agendaItems = [...(meeting.agendaItems || [])].sort((a, b) => a.order - b.order);
 
-  const rawMeetingNo = cover?.meetingNumber || "XX";
-  const cleanMeetingNo = rawMeetingNo.replace(/\D/g, "") || rawMeetingNo;
+  const cleanMeetingNo = getMeetingNumberForAgenda(meeting, cover);
+  const rawMeetingNo = cleanMeetingNo;
   let currentMainNumber = 0;
   let currentSubLetterIndex = 0;
 
@@ -296,7 +296,8 @@ export async function exportMomPdf(meeting: MomMeeting) {
       1: { cellWidth: pageWidth - margin * 2 - 135 },
     },
     body: [
-      ["Meeting", `${cover.meetingNumber || "Nth"} Meeting of the ${cover.meetingBody || "Board of Governors"}`],
+      ["Meeting", meeting.title || cover.meetingNumber || "Meeting"],
+      ["Type", meeting.meetingType || cover.meetingBody || "Meeting"],
       ["Institute", cover.instituteName || "National Institute of Technology Calicut"],
       ["Date", cover.dateLine || formatDate(meeting.date)],
       ["Venue / Mode", cover.venueLine || meeting.venue || meeting.link || "Not specified"],
@@ -498,8 +499,8 @@ export function exportMomWord(meeting: MomMeeting) {
   const approvalStatus = meeting.momApprovalStatus || [];
   const approvedMembers = approvalStatus.filter((approval) => approval.approved);
 
-  const rawMeetingNo = cover?.meetingNumber || "XX";
-  const cleanMeetingNo = rawMeetingNo.replace(/\D/g, "") || rawMeetingNo;
+  const cleanMeetingNo = getMeetingNumberForAgenda(meeting, cover);
+  const rawMeetingNo = cleanMeetingNo;
   let currentMainNumber = 0;
   let currentSubLetterIndex = 0;
 
@@ -618,7 +619,8 @@ export function exportMomWord(meeting: MomMeeting) {
         <div class="header">National Institute of Technology Calicut</div>
         <h1>Minutes of Meeting</h1>
         <table class="meta">
-          <tr><td>Meeting</td><td>${escapeHtml(`${cover.meetingNumber || "Nth"} Meeting of the ${cover.meetingBody || "Board of Governors"}`)}</td></tr>
+          <tr><td>Meeting</td><td>${escapeHtml(meeting.title || cover.meetingNumber || "Meeting")}</td></tr>
+          <tr><td>Type</td><td>${escapeHtml(meeting.meetingType || cover.meetingBody || "Meeting")}</td></tr>
           <tr><td>Institute</td><td>${escapeHtml(cover.instituteName || "National Institute of Technology Calicut")}</td></tr>
           <tr><td>Date</td><td>${escapeHtml(cover.dateLine || formatDate(meeting.date))}</td></tr>
           <tr><td>Venue / Mode</td><td>${escapeHtml(cover.venueLine || meeting.venue || meeting.link || "Not specified")}</td></tr>
@@ -721,20 +723,17 @@ export function drawOfficialCover(
   }
 
   doc.setFont("times", "bold");
-  doc.setFontSize(25);
+  doc.setFontSize(24);
   doc.setTextColor(0, 174, 239);
-  doc.text("Minutes", pageWidth / 2, 175, { align: "center" });
+  doc.text("Minutes of Meeting", pageWidth / 2, 165, { align: "center" });
+
+  doc.setFontSize(36);
+  doc.setTextColor(0, 175, 75);
+  doc.text(meeting.title || cover.meetingNumber || "Meeting", pageWidth / 2, 230, { align: "center", maxWidth: 520 });
 
   doc.setTextColor(205, 0, 0);
-  doc.setFontSize(31);
-  doc.text(`of the ${cover.meetingNumber || "Nth"}`, pageWidth / 2, 220, { align: "center" });
-
-  doc.setFontSize(20);
-  doc.text("Meeting of the", pageWidth / 2, 270, { align: "center" });
-
-  doc.setFontSize(31);
-  doc.setTextColor(0, 175, 75);
-  doc.text(cover.meetingBody || "Board of Governors", pageWidth / 2, 314, { align: "center" });
+  doc.setFontSize(14);
+  doc.text(meeting.meetingType || cover.meetingBody || "Meeting", pageWidth / 2, 285, { align: "center", maxWidth: 520 });
 
   doc.setFont("times", "normal");
   doc.setFontSize(18);

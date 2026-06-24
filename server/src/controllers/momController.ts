@@ -250,15 +250,18 @@ const hasSameMomContent = (target: any, agendaItems: any[] = [], momCoverDetails
 
 const normalizeCoverDetails = (details: any = {}) => ({
   meetingNumber: details.meetingNumber || '',
-  meetingBody: details.meetingBody || 'Board of Governors',
+  meetingBody: details.meetingBody || '',
   instituteName: details.instituteName || 'National Institute of Technology Calicut',
   dateLine: details.dateLine || '',
   venueLine: details.venueLine || '',
 });
 
 function buildCoverDetailsFromMeeting(meeting: any, details: any = {}) {
+  const normalizedDetails = normalizeCoverDetails(details);
   return {
-    ...normalizeCoverDetails(details),
+    ...normalizedDetails,
+    meetingNumber: normalizedDetails.meetingNumber || meeting.title || '',
+    meetingBody: normalizedDetails.meetingBody || meeting.meetingType || 'Meeting',
     dateLine: `on ${new Date(meeting.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })} from ${meeting.startTime || 'start time'} to ${meeting.endTime || 'end time'}`,
     venueLine: `${meeting.mode || 'Meeting'} mode at ${meeting.venue || meeting.link || 'the notified venue'}`,
   };

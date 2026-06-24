@@ -125,11 +125,6 @@ export default function MeetingAISummary({ meetingId, meeting, onUpdated, momMod
       setError("Generate a meeting summary before creating a MoM draft.");
       return;
     }
-    if (momMode && !isCoverComplete(displayedMeeting?.momCoverDetails)) {
-      window.alert("Please complete the cover page details before approving the filled MoM.");
-      return;
-    }
-
     setIsDraftingMom(true);
     setError("");
     setNotice("");
@@ -290,16 +285,6 @@ export default function MeetingAISummary({ meetingId, meeting, onUpdated, momMod
         </div>
       </div>
     </section>
-  );
-}
-
-function isCoverComplete(details?: any) {
-  return Boolean(
-    details?.meetingNumber?.trim?.() &&
-    details?.meetingBody?.trim?.() &&
-    details?.instituteName?.trim?.() &&
-    details?.dateLine?.trim?.() &&
-    details?.venueLine?.trim?.()
   );
 }
 
